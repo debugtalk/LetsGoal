@@ -115,5 +115,10 @@ export function classifyFailure(
   if (lintFailed && !typecheckFailed && !testFailed) return "lint_violation";
   if (testFailed) return "test_failure";
 
+  // 所有硬门禁通过但加权分不足 → 覆盖率不足
+  if (evaluation.hard_gates_all_passed && evaluation.weighted_score < 1.0) {
+    return "coverage_insufficient";
+  }
+
   return "unknown";
 }

@@ -57,7 +57,9 @@ function toHardGate(
   if (r.passed) {
     return { gate, passed: true };
   }
-  // 失败:取 stderr_tail 第一行作为 detail
+  // 非要求门禁失败 → 不计入 hard_gates（仅作为参考信息，不影响 pass/fail）
+  if (!required) return null;
+  // 要求门禁失败:取 stderr_tail 第一行作为 detail
   const head = (r.stderr_tail.trim() || r.stdout_tail.trim()).split(/\r?\n/)[0] ?? "";
   return {
     gate,

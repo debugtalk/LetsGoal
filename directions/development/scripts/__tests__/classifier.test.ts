@@ -320,6 +320,53 @@ describe("classifyFailure — 无 evaluatorResult 回退", () => {
   });
 });
 
+describe("classifyFailure — coverage_insufficient", () => {
+  it("所有硬门禁通过 + weighted_score < 1.0 → coverage_insufficient", () => {
+    const evaluation: EvaluationResult = {
+      hard_gates: [
+        { gate: "lint", passed: true },
+        { gate: "typecheck", passed: true },
+        { gate: "test", passed: true },
+      ],
+      hard_gates_all_passed: true,
+      weighted_score: 0.6,
+    };
+
+    expect(classifyFailure(evaluation)).toBe("coverage_insufficient");
+  });
+
+  it("所有硬门禁通过 + weighted_score < 1.0 + 有 evaluatorResult → coverage_insufficient", () => {
+    const evaluation: EvaluationResult = {
+      hard_gates: [
+        { gate: "lint", passed: true },
+        { gate: "typecheck", passed: true },
+        { gate: "test", passed: true },
+      ],
+      hard_gates_all_passed: true,
+      weighted_score: 0.45,
+    };
+    const evaluatorResult = makeEvaluatorResult({
+      lint: makeRunResult({ passed: true, exit_code: 0 }),
+      typecheck: makeRunResult({ passed: true, exit_code: 0 }),
+      test: makeRunResult({ passed: true, exit_code: 0 }),
+    });
+
+    expect(classifyFailure(evaluation, evaluatorResult)).toBe("coverage_insufficient");
+  });
+
+  it("所有硬门禁通过 + weighted_score = 1.0 → unknown（不是 coverage_insufficient）", () => {
+    const evaluation = makeAllPassedEvaluation();
+
+    expect(classifyFailure(evaluation)).toBe("unknown");
+  });
+
+  it("有硬门禁失败 + weighted_score < 1.0 → 不是 coverage_insufficient", () => {
+    const evaluation = makeEvaluation(["test"]);
+
+    expect(classifyFailure(evaluation)).toBe("test_failure");
+  });
+});
+
 describe("classifyFailure — 规则未覆盖的分类返回 unknown", () => {
   it("typecheck 失败但 stderr 不匹配任何已知模式 → 回退 evaluation 级别", () => {
     const evaluation = makeEvaluation(["typecheck"]);
