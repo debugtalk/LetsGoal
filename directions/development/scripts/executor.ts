@@ -136,6 +136,26 @@ export function buildPrompt(input: ExecutorInput): string {
     blocks.push(`# Bug 复现\n${dev.bug_repro}`);
   }
 
+  if (dev.task_type === "skill_creation") {
+    blocks.push(
+      "# Skill 创建指导\n" +
+      "你正在创建一个 Claude Code Skill。Skill 必须遵循 SKILL.md 格式，包含：\n" +
+      "1. YAML frontmatter（name + description）\n" +
+      "2. 适用场景和跳过条件\n" +
+      "3. 输入/输出契约\n" +
+      "4. 执行步骤\n" +
+      "Skill 必须能被 Claude Code 正确加载和使用。",
+    );
+  }
+
+  if (dev.task_type === "skill_optimize") {
+    blocks.push(
+      "# Skill 优化指导\n" +
+      "你正在优化一个现有的 Claude Code Skill。目标：提高 Skill 的评测通过率。\n" +
+      "不要修改评测用例（它们是冻结的）。只修改 Skill 定义文件。",
+    );
+  }
+
   blocks.push(`# 约束\n${bullet(task.constraints)}`);
   blocks.push(`# 禁止改动(任何情况下不得修改)\n${bullet(task.forbidden_changes)}`);
 
@@ -147,13 +167,19 @@ export function buildPrompt(input: ExecutorInput): string {
   if (iteration > 1) {
     if (input.prevEvaluation !== undefined) {
       const e = input.prevEvaluation;
+      const gateLines = [
+        gateLine("lint", e.lint),
+        gateLine("typecheck", e.typecheck),
+        gateLine("test", e.test),
+      ];
+      if (e.skill_syntax !== undefined) {
+        gateLines.push(gateLine("skill_syntax", e.skill_syntax));
+      }
+      if (e.skill_eval !== undefined) {
+        gateLines.push(gateLine("skill_eval", e.skill_eval));
+      }
       blocks.push(
-        [
-          "# 上一轮评估",
-          gateLine("lint", e.lint),
-          gateLine("typecheck", e.typecheck),
-          gateLine("test", e.test),
-        ].join("\n"),
+        ["# 上一轮评估", ...gateLines].join("\n"),
       );
     }
     if (input.prevDiagnosis !== undefined) {

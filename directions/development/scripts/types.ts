@@ -70,6 +70,8 @@ export interface EvaluatorResult {
   lint?: EvaluatorRunResult;
   typecheck?: EvaluatorRunResult;
   test?: EvaluatorRunResult;
+  skill_syntax?: EvaluatorRunResult; // Skill 语法校验(task_type=skill_* 时)
+  skill_eval?: EvaluatorRunResult;   // Skill 评测用例(task_type=skill_* 时)
 }
 
 /**

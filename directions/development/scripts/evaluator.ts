@@ -14,7 +14,7 @@
 
 import { spawn } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
 
 import type {
   DevCommands,
@@ -27,6 +27,12 @@ import type {
 import { asDevPayload, DEV_GATE_NAMES } from "./types.js";
 
 import type { LoopTask } from "../../../core/scripts/types.js";
+import {
+  validateSkillSyntax,
+  runSkillEvalCases,
+  skillSyntaxToRunResult,
+  skillEvalToRunResult,
+} from "./skill_eval.js";
 
 // ============================================================================
 // 配置
@@ -301,6 +307,29 @@ async function evaluateGate(
 }
 
 // ============================================================================
+// Skill 评测用例目录解析
+// ============================================================================
+
+/**
+ * 从 DevTaskRequest.eval_suite 推导评测用例目录。
+ * 若 eval_suite 未配置或 files 为空，默认 <project_root>/eval-cases。
+ */
+function resolveEvalCasesDir(
+  projectRoot: string,
+  evalSuite?: { version: string; files: string[] },
+): string {
+  if (evalSuite && evalSuite.files.length > 0) {
+    const firstPattern = evalSuite.files[0];
+    const starIdx = firstPattern.indexOf("*");
+    if (starIdx > 0) {
+      return resolve(projectRoot, firstPattern.slice(0, starIdx).replace(/\/$/, ""));
+    }
+    return resolve(projectRoot, dirname(firstPattern));
+  }
+  return resolve(projectRoot, "eval-cases");
+}
+
+// ============================================================================
 // 顶层入口
 // ============================================================================
 
@@ -324,6 +353,22 @@ export async function evaluateTask(task: LoopTask): Promise<EvaluatorResult> {
     const r = await evaluateGate(gate, dev, language, pkgScripts, devJson);
     if (r !== undefined) result[gate] = r;
   }
+
+  // Skill 专用门禁(task_type=skill_creation / skill_optimize 时额外运行)
+  const isSkillTask = dev.task_type === "skill_creation" || dev.task_type === "skill_optimize";
+  if (isSkillTask) {
+    const skillPath = resolve(dev.project_root, "SKILL.md");
+    const syntaxResult = validateSkillSyntax(skillPath);
+    result.skill_syntax = skillSyntaxToRunResult(syntaxResult);
+
+    const evalCasesDir = resolveEvalCasesDir(dev.project_root, dev.eval_suite);
+    if (existsSync(evalCasesDir)) {
+      const start = Date.now();
+      const evalResult = await runSkillEvalCases(dev.project_root, evalCasesDir);
+      result.skill_eval = skillEvalToRunResult(evalResult, Date.now() - start);
+    }
+  }
+
   return result;
 }
 
