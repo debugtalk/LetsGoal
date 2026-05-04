@@ -30,6 +30,8 @@ import type {
   EvaluatorRunResult,
 } from "./types.js";
 import { asDevPayload } from "./types.js";
+import { CATEGORY_REPAIR_HINTS, isDiagnosisCategory } from "./classifier.js";
+import type { DiagnosisCategory } from "./classifier.js";
 
 // ============================================================================
 // 配置
@@ -72,20 +74,7 @@ export interface ExecutorOutput {
 
 const PROMPT_HEADER = "你正在执行 LetsGoal 开发调试方向的自循环。";
 
-/** 归因分类 → 修复策略提示 */
-const CATEGORY_REPAIR_HINTS: Record<string, string> = {
-  syntax_error: "语法错误，直接定位报错位置修复",
-  type_error: "类型错误，根据类型信息修复类型标注或代码逻辑",
-  lint_violation: "lint 报错，按 lint 规则修复代码风格或结构问题",
-  test_failure: "测试失败，定位具体失败用例，分析原因并修复对应代码",
-  integration_error: "集成失败，检查外部依赖连接/IO/API 调用，考虑添加重试或降级",
-  architecture_mismatch: "设计违反约束，可能需要人工介入——不要强行绕过约束",
-  requirement_ambiguity: "需求不明确，不要猜测意图——明确需求后再修复",
-  performance_regression: "性能退化，排查最近的变更是否引入性能瓶颈",
-  coverage_insufficient: "覆盖率不达标，补充缺失的测试用例",
-};
-
-function categoryRepairHint(category: string): string | null {
+function categoryRepairHint(category: DiagnosisCategory): string | null {
   return CATEGORY_REPAIR_HINTS[category] ?? null;
 }
 
@@ -184,7 +173,7 @@ export function buildPrompt(input: ExecutorInput): string {
     }
     if (input.prevDiagnosis !== undefined) {
       const lines = [`# 上一轮失败归因`, input.prevDiagnosis.reason];
-      if (input.prevDiagnosis.category) {
+      if (input.prevDiagnosis.category && isDiagnosisCategory(input.prevDiagnosis.category)) {
         lines.push(`归因分类: ${input.prevDiagnosis.category}`);
         const hint = categoryRepairHint(input.prevDiagnosis.category);
         if (hint) lines.push(`修复建议: ${hint}`);

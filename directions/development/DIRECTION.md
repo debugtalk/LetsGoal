@@ -140,6 +140,28 @@ export const developmentAdapter: DirectionAdapter = {
 
 `core/scripts/self_loop.ts` 通过 `--direction development` 加载此 adapter。
 
+## M1 范围
+
+**做**:
+- 9 类归因分类器（classifier.ts），规则优先，LLM 兜底（可选）
+- Diagnosis.category 字段填充，category 感知的修复策略注入 executor prompt
+- architecture_mismatch / requirement_ambiguity → escalate
+- 评测集版本冻结（eval_suite.ts），SHA-256 哈希校验
+- Skill 创建场景（skill_creation task_type）：skill_syntax / skill_eval 门禁
+- Skill 优化场景（skill_optimize task_type）：冻结评测集 + 优化专用 prompt
+- Skill 创建/优化 executor prompt 模板
+- 非硬门禁门禁失败不影响 pass/fail 判定（adapter 修复）
+- F4 / F5 fixture（Skill 创建/优化）
+- vitest 测试基础设施
+
+**不做**:
+- 加权软分（仍用硬门禁通过/不通过）
+- LLM 归因分类（预留接口，默认关闭）
+- 覆盖率门禁（M2）
+- e2e 门禁（M2）
+- 渐进式自主（只有 standard 模式）
+- 飞书通知 / 飞书表格
+
 ## M0 范围
 
 **做**:
@@ -190,6 +212,8 @@ export interface EvaluatorResult {
   lint?: EvaluatorRunResult;
   typecheck?: EvaluatorRunResult;
   test?: EvaluatorRunResult;
+  skill_syntax?: EvaluatorRunResult; // M1: Skill 格式校验
+  skill_eval?: EvaluatorRunResult;   // M1: Skill eval case 通过率
   // 缺失字段表示"该命令未发现,本门禁 skip"
 }
 ```

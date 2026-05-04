@@ -33,7 +33,8 @@ task_type: skill_creation
 language: javascript
 success_criteria:
   hard_gates:
-    - test
+    - skill_syntax
+    - skill_eval
 loop_config:
   max_iterations: 3
   min_score: 1.0

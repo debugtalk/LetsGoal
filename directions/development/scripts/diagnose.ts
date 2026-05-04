@@ -1,11 +1,9 @@
 /**
- * 开发调试方向失败归因(M0 自由文本版本)
+ * 开发调试方向失败归因
  *
- * M0:不做分类,只把硬门禁失败的 stderr_tail 摘要拼成自由文本 reason。
- * M1+:引入 9 类归因(syntax_error / type_error / lint_violation / test_failure 等)。
- *
- * 设计意图:把"为什么失败"用 Claude 能理解的简洁文本表达,作为下一轮 prompt
- * 的关键上下文。证据(stderr_tail)作为 Diagnosis.evidence 单独保留。
+ * 用硬门禁失败的 stderr_tail 摘要拼成自由文本 reason，
+ * 同时调用 classifier 填充 Diagnosis.category。
+ * 证据(stderr_tail)作为 Diagnosis.evidence 单独保留。
  */
 
 import type { Diagnosis, EvaluationResult } from "../../../core/scripts/types.js";

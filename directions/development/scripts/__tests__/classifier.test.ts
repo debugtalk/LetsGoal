@@ -1,24 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { classifyFailure, CATEGORIES } from "../classifier.js";
-import type { DiagnosisCategory } from "../classifier.js";
+import { classifyFailure, CATEGORIES, isDiagnosisCategory } from "../classifier.js";
 import type { EvaluationResult } from "../../../../core/scripts/types.js";
 import type { EvaluatorResult } from "../types.js";
 
-// ============================================================================
-// 测试辅助
-// ============================================================================
-
-function makeEvaluation(failedGates: string[]): EvaluationResult {
-  return {
-    hard_gates: failedGates.map((g) => ({
-      gate: g,
-      passed: false,
-      detail: `${g} failed`,
-    })),
-    hard_gates_all_passed: failedGates.length === 0,
-    weighted_score: 0,
-  };
-}
+import { makeEvaluation } from "./helpers.js";
 
 function makeAllPassedEvaluation(): EvaluationResult {
   return {
@@ -380,21 +365,14 @@ describe("classifyFailure — 规则未覆盖的分类返回 unknown", () => {
 });
 
 describe("DiagnosisCategory 类型", () => {
-  it("所有 10 个分类都在 CATEGORIES 中", () => {
-    const expected: DiagnosisCategory[] = [
-      "syntax_error",
-      "type_error",
-      "lint_violation",
-      "test_failure",
-      "integration_error",
-      "coverage_insufficient",
-      "architecture_mismatch",
-      "requirement_ambiguity",
-      "performance_regression",
-      "unknown",
-    ];
-    for (const cat of expected) {
-      expect(CATEGORIES).toContain(cat);
+  it("所有 CATEGORIES 值都是合法的 DiagnosisCategory", () => {
+    for (const cat of CATEGORIES) {
+      expect(isDiagnosisCategory(cat)).toBe(true);
     }
+  });
+
+  it("非法值不是 DiagnosisCategory", () => {
+    expect(isDiagnosisCategory("not_a_category")).toBe(false);
+    expect(isDiagnosisCategory("")).toBe(false);
   });
 });

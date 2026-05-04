@@ -7,8 +7,8 @@
  *   - skill_eval: 检查 SKILL.md 是否包含评测用例要求的章节
  */
 
-import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 
 import type { EvaluatorRunResult } from "./types.js";
 
@@ -22,41 +22,45 @@ export interface SkillSyntaxResult {
 }
 
 /**
- * 校验 SKILL.md 文件的语法合规性:
- *   1. 文件存在
- *   2. YAML frontmatter 存在(以 --- 开头和结尾)
- *   3. frontmatter 中包含 name 和 description 字段
- *   4. 正文中包含「适用场景」章节
+ * 从文件路径校验 SKILL.md 语法合规性。
  */
 export function validateSkillSyntax(skillPath: string): SkillSyntaxResult {
-  const errors: string[] = [];
-
-  if (!existsSync(skillPath)) {
+  try {
+    const content = readFileSync(skillPath, "utf-8");
+    return validateSkillSyntaxContent(content);
+  } catch {
     return { valid: false, errors: ["SKILL.md 文件不存在"] };
   }
+}
 
-  const content = readFileSync(skillPath, "utf-8");
+/**
+ * 纯函数：从内容校验 SKILL.md 语法合规性。
+ *
+ *   1. YAML frontmatter 存在(以 --- 开头和结尾)
+ *   2. frontmatter 中包含 name 和 description 字段
+ *   3. 正文中包含「适用场景」章节
+ */
+export function validateSkillSyntaxContent(content: string): SkillSyntaxResult {
+  const errors: string[] = [];
 
   if (!content.startsWith("---")) {
-    errors.push("缺少 YAML frontmatter(应以 --- 开头)");
+    return { valid: false, errors: ["缺少 YAML frontmatter(应以 --- 开头)"] };
   }
 
   const secondDash = content.indexOf("---", 3);
   if (secondDash === -1) {
-    errors.push("缺少 YAML frontmatter 结束标记(应以 --- 结尾)");
+    return { valid: false, errors: ["缺少 YAML frontmatter 结束标记(应以 --- 结尾)"] };
   }
 
-  if (secondDash !== -1) {
-    const frontmatter = content.slice(3, secondDash);
-    if (!/^name\s*:/m.test(frontmatter)) {
-      errors.push("frontmatter 中缺少 name 字段");
-    }
-    if (!/^description\s*:/m.test(frontmatter)) {
-      errors.push("frontmatter 中缺少 description 字段");
-    }
+  const frontmatter = content.slice(3, secondDash);
+  if (!/^name\s*:/m.test(frontmatter)) {
+    errors.push("frontmatter 中缺少 name 字段");
+  }
+  if (!/^description\s*:/m.test(frontmatter)) {
+    errors.push("frontmatter 中缺少 description 字段");
   }
 
-  const body = secondDash !== -1 ? content.slice(secondDash + 3) : content;
+  const body = content.slice(secondDash + 3);
   if (!/^##\s+适用场景/m.test(body)) {
     errors.push("正文中缺少「适用场景」章节(## 适用场景)");
   }
@@ -81,29 +85,20 @@ export interface SkillEvalResult {
 }
 
 /**
- * 运行 Skill 评测用例:
- *   - 读取 evalCasesDir 下所有 JSON 文件
- *   - 每个 case 检查 SKILL.md 是否包含 expected_sections 中的所有章节
- *   - 返回通过/失败数量和详情
+ * 运行 Skill 评测用例（从 evalCasesDir 读取 JSON 文件，检查 SKILL.md 内容）。
  */
-export async function runSkillEvalCases(
-  skillDir: string,
+export function runSkillEvalCases(
+  skillContent: string,
   evalCasesDir: string,
-): Promise<SkillEvalResult> {
-  const skillPath = resolve(skillDir, "SKILL.md");
-
-  if (!existsSync(skillPath)) {
-    return { passed: 0, failed: 0, details: ["SKILL.md 不存在，无法运行评测用例"] };
-  }
-  const content = readFileSync(skillPath, "utf-8");
-
-  if (!existsSync(evalCasesDir)) {
+): SkillEvalResult {
+  let jsonFiles: string[];
+  try {
+    jsonFiles = readdirSync(evalCasesDir)
+      .filter((f) => f.endsWith(".json"))
+      .sort();
+  } catch {
     return { passed: 0, failed: 0, details: [`评测用例目录不存在: ${evalCasesDir}`] };
   }
-
-  const jsonFiles = readdirSync(evalCasesDir)
-    .filter((f) => f.endsWith(".json"))
-    .sort();
 
   if (jsonFiles.length === 0) {
     return { passed: 0, failed: 0, details: [`评测用例目录下没有 JSON 文件: ${evalCasesDir}`] };
@@ -132,7 +127,7 @@ export async function runSkillEvalCases(
     }
 
     const missing = evalCase.expected_sections.filter(
-      (section) => !content.includes(section),
+      (section) => !skillContent.includes(section),
     );
 
     if (missing.length === 0) {

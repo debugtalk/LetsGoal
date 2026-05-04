@@ -20,8 +20,8 @@ import {
 } from "./evaluator.js";
 import { executeIteration } from "./executor.js";
 import { diagnoseDevelopmentFailure } from "./diagnose.js";
-import { type DiagnosisCategory } from "./classifier.js";
-import { asDevPayload, DEV_GATE_NAMES, type DevGateName, type EvaluatorResult, type EvaluatorRunResult } from "./types.js";
+import { ESCALATE_CATEGORIES, isDiagnosisCategory } from "./classifier.js";
+import { asDevPayload, DEV_GATE_NAMES, type EvaluatorResult, type EvaluatorRunResult } from "./types.js";
 import { freezeEvalSuite, verifyEvalSuite, type EvalSuiteRecord } from "./eval_suite.js";
 
 import { spawnSync } from "node:child_process";
@@ -76,6 +76,7 @@ function evaluatorResultToEvaluation(
   const requiredGates = new Set(task.success_criteria.hard_gates);
   const hardGates: HardGateResult[] = [];
 
+  // 三件套门禁
   for (const name of DEV_GATE_NAMES) {
     const isRequired = requiredGates.has(name);
     const r = raw[name];
@@ -83,19 +84,35 @@ function evaluatorResultToEvaluation(
     if (gate !== null) hardGates.push(gate);
   }
 
-  // 检查 success_criteria 中是否还有非三件套的门禁(M0 不支持,但要警告)
+  // Skill 专用门禁（skill_syntax / skill_eval）
+  const skillGates: [string, EvaluatorRunResult | undefined][] = [
+    ["skill_syntax", raw.skill_syntax],
+    ["skill_eval", raw.skill_eval],
+  ];
+  for (const [name, r] of skillGates) {
+    const isRequired = requiredGates.has(name);
+    const gate = toHardGate(name, r, isRequired);
+    if (gate !== null) hardGates.push(gate);
+  }
+
+  // 检查 success_criteria 中是否还有未覆盖的门禁
+  const knownGates = new Set([
+    ...DEV_GATE_NAMES,
+    "skill_syntax",
+    "skill_eval",
+  ]);
   for (const required of requiredGates) {
-    if (!DEV_GATE_NAMES.includes(required as DevGateName)) {
+    if (!knownGates.has(required)) {
       hardGates.push({
         gate: required,
         passed: false,
-        detail: "未知门禁(M0 仅支持 lint/typecheck/test)",
+        detail: "未知门禁",
       });
     }
   }
 
   const allPassed = hardGates.every((g) => g.passed);
-  const weightedScore = allPassed ? 1.0 : 0.0; // M0 简化:全过 1.0,否则 0.0
+  const weightedScore = allPassed ? 1.0 : 0.0;
 
   return {
     hard_gates: hardGates,
@@ -199,6 +216,10 @@ async function evaluate(
 
   const raw = await evaluateTask(task);
   evaluatorResultByIter.set(iteration, raw);
+  // 只保留最近两轮的结果（当轮 + 上一轮）
+  for (const key of [...evaluatorResultByIter.keys()]) {
+    if (key < iteration - 1) evaluatorResultByIter.delete(key);
+  }
   return evaluatorResultToEvaluation(task, raw);
 }
 
@@ -211,12 +232,6 @@ async function diagnose(
   return diagnoseDevelopmentFailure(evaluation, raw);
 }
 
-/** 需要升级人工的归因分类 */
-const ESCALATE_CATEGORIES: ReadonlySet<DiagnosisCategory> = new Set([
-  "architecture_mismatch",
-  "requirement_ambiguity",
-]);
-
 async function report(_task: LoopTask, iter: IterationResult): Promise<string> {
   const passOrFail = iter.status === "passed" ? "✅ PASS" : "❌ FAIL";
   const gates = iter.evaluation.hard_gates
@@ -226,7 +241,7 @@ async function report(_task: LoopTask, iter: IterationResult): Promise<string> {
   const cat = iter.diagnosis?.category;
   const categoryTag = cat ? ` [${cat}]` : "";
   const escalateTag =
-    cat && ESCALATE_CATEGORIES.has(cat as DiagnosisCategory) ? " ⚠️ESCALATE" : "";
+    cat && isDiagnosisCategory(cat) && ESCALATE_CATEGORIES.has(cat) ? " ⚠️ESCALATE" : "";
   const reason =
     iter.status === "failed" && iter.diagnosis
       ? `\n  └─ ${iter.diagnosis.reason}`

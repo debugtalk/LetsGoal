@@ -40,6 +40,7 @@ import type {
   ProjectLanguage,
 } from "../../directions/development/scripts/types.js";
 import { DEV_GATE_NAMES } from "../../directions/development/scripts/types.js";
+import type { EvalSuiteConfig } from "../../directions/development/scripts/eval_suite.js";
 
 // ============================================================================
 // Markdown 解析
@@ -184,10 +185,7 @@ interface ConfigYaml {
     test?: string;
   };
   coverage_target?: number;
-  eval_suite?: {
-    version: string;
-    files: string[];
-  };
+  eval_suite?: EvalSuiteConfig;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

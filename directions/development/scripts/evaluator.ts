@@ -14,7 +14,7 @@
 
 import { spawn } from "node:child_process";
 import { readFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { resolve } from "node:path";
 
 import type {
   DevCommands,
@@ -27,8 +27,9 @@ import type {
 import { asDevPayload, DEV_GATE_NAMES } from "./types.js";
 
 import type { LoopTask } from "../../../core/scripts/types.js";
+import type { EvalSuiteConfig } from "./eval_suite.js";
 import {
-  validateSkillSyntax,
+  validateSkillSyntaxContent,
   runSkillEvalCases,
   skillSyntaxToRunResult,
   skillEvalToRunResult,
@@ -306,27 +307,24 @@ async function evaluateGate(
   };
 }
 
-// ============================================================================
-// Skill 评测用例目录解析
-// ============================================================================
-
 /**
- * 从 DevTaskRequest.eval_suite 推导评测用例目录。
- * 若 eval_suite 未配置或 files 为空，默认 <project_root>/eval-cases。
+ * 从 eval_suite.files 推导评测用例目录。
+ * 取第一个 glob pattern 中 glob 元字符之前的最长路径前缀。
+ * 若 eval_suite 未配置，默认 <project_root>/eval-cases。
  */
 function resolveEvalCasesDir(
   projectRoot: string,
-  evalSuite?: { version: string; files: string[] },
+  evalSuite?: EvalSuiteConfig,
 ): string {
-  if (evalSuite && evalSuite.files.length > 0) {
-    const firstPattern = evalSuite.files[0];
-    const starIdx = firstPattern.indexOf("*");
-    if (starIdx > 0) {
-      return resolve(projectRoot, firstPattern.slice(0, starIdx).replace(/\/$/, ""));
-    }
-    return resolve(projectRoot, dirname(firstPattern));
+  if (!evalSuite || evalSuite.files.length === 0) {
+    return resolve(projectRoot, "eval-cases");
   }
-  return resolve(projectRoot, "eval-cases");
+  // 从 glob pattern 提取目录前缀：取第一个 pattern，截断到 glob 元字符
+  const pattern = evalSuite.files[0];
+  const globIdx = pattern.search(/[*?\[{]/);
+  const prefix = globIdx > 0 ? pattern.slice(0, globIdx) : pattern;
+  const dir = prefix.replace(/\/+$/, "");
+  return resolve(projectRoot, dir || "eval-cases");
 }
 
 // ============================================================================
@@ -358,14 +356,34 @@ export async function evaluateTask(task: LoopTask): Promise<EvaluatorResult> {
   const isSkillTask = dev.task_type === "skill_creation" || dev.task_type === "skill_optimize";
   if (isSkillTask) {
     const skillPath = resolve(dev.project_root, "SKILL.md");
-    const syntaxResult = validateSkillSyntax(skillPath);
+    let skillContent: string | undefined;
+    try {
+      skillContent = readFileSync(skillPath, "utf-8");
+    } catch {
+      // SKILL.md 不存在，两个 skill 门禁都会失败
+    }
+
+    // skill_syntax: 检查 SKILL.md 格式
+    const syntaxResult = skillContent !== undefined
+      ? validateSkillSyntaxContent(skillContent)
+      : { valid: false, errors: ["SKILL.md 文件不存在"] };
     result.skill_syntax = skillSyntaxToRunResult(syntaxResult);
 
+    // skill_eval: 检查 SKILL.md 是否满足评测用例
     const evalCasesDir = resolveEvalCasesDir(dev.project_root, dev.eval_suite);
-    if (existsSync(evalCasesDir)) {
+    if (skillContent !== undefined && existsSync(evalCasesDir)) {
       const start = Date.now();
-      const evalResult = await runSkillEvalCases(dev.project_root, evalCasesDir);
+      const evalResult = runSkillEvalCases(skillContent, evalCasesDir);
       result.skill_eval = skillEvalToRunResult(evalResult, Date.now() - start);
+    } else if (skillContent === undefined) {
+      result.skill_eval = {
+        command: "skill_eval",
+        exit_code: 1,
+        passed: false,
+        duration_ms: 0,
+        stdout_tail: "",
+        stderr_tail: "SKILL.md 不存在，无法运行评测用例",
+      };
     }
   }
 
