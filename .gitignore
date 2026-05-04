@@ -1,0 +1,10 @@
+node_modules/
+dist/
+*.log
+.env
+.env.local
+.DS_Store
+
+# 自循环运行时产物
+.letsgoal/
+*.iteration.log

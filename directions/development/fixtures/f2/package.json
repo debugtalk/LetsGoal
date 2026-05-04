@@ -1,0 +1,8 @@
+{
+  "name": "fizzbuzz-fixture-buggy",
+  "version": "1.0.0",
+  "description": "F2 fixture: buggy fizzbuzz + tests → fix the bug",
+  "scripts": {
+    "test": "node test/fizzbuzz.test.js"
+  }
+}

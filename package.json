@@ -1,0 +1,23 @@
+{
+  "name": "letsgoal",
+  "version": "0.1.0",
+  "description": "目标导向的 Agent 自循环框架(开发调试 / 数据采集 / 模型调优)",
+  "type": "module",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "self-loop": "tsx core/scripts/self_loop.ts",
+    "parse-request": "tsx core/scripts/parse_request.ts"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

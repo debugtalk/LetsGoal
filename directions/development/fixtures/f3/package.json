@@ -1,0 +1,8 @@
+{
+  "name": "fizzbuzz-fixture-incomplete",
+  "version": "1.0.0",
+  "description": "F3 fixture: incomplete fizzbuzz + tests → complete the implementation",
+  "scripts": {
+    "test": "node test/fizzbuzz.test.js"
+  }
+}

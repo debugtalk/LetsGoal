@@ -1,0 +1,8 @@
+{
+  "name": "fizzbuzz-fixture",
+  "version": "1.0.0",
+  "description": "F1 fixture: empty repo + tests → implement fizzbuzz from scratch",
+  "scripts": {
+    "test": "node test/fizzbuzz.test.js"
+  }
+}
