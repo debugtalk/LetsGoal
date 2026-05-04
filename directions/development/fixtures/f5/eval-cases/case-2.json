@@ -1,0 +1,5 @@
+{
+  "name": "SKILL 包含适用场景章节",
+  "input": "检查 SKILL.md 正文中是否包含适用场景章节",
+  "expected_sections": ["## 适用场景"]
+}

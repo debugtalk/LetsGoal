@@ -1,0 +1,5 @@
+{
+  "name": "SKILL 包含 name 字段",
+  "input": "检查 SKILL.md frontmatter 中是否包含 name=code-reviewer",
+  "expected_sections": ["name: code-reviewer"]
+}

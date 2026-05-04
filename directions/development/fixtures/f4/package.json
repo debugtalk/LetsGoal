@@ -1,0 +1,8 @@
+{
+  "name": "skill-creation-fixture",
+  "version": "1.0.0",
+  "description": "F4 fixture: empty repo + eval cases -> create SKILL.md from scratch",
+  "scripts": {
+    "test": "node test/fixture.test.js"
+  }
+}

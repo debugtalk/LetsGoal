@@ -1,0 +1,5 @@
+{
+  "name": "SKILL 包含输出审查建议步骤",
+  "input": "检查 SKILL.md 执行步骤中是否包含输出审查建议的步骤",
+  "expected_sections": ["输出审查建议"]
+}

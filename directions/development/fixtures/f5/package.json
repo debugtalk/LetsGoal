@@ -1,0 +1,8 @@
+{
+  "name": "skill-optimize-fixture",
+  "version": "1.0.0",
+  "description": "F5 fixture: incomplete SKILL.md + eval cases -> optimize skill to pass all cases",
+  "scripts": {
+    "test": "node test/fixture.test.js"
+  }
+}
