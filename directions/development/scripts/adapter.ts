@@ -20,6 +20,7 @@ import {
 } from "./evaluator.js";
 import { executeIteration } from "./executor.js";
 import { diagnoseDevelopmentFailure } from "./diagnose.js";
+import { type DiagnosisCategory } from "./classifier.js";
 import { asDevPayload, DEV_GATE_NAMES, type DevGateName, type EvaluatorResult, type EvaluatorRunResult } from "./types.js";
 
 import { spawnSync } from "node:child_process";
@@ -182,17 +183,27 @@ async function diagnose(
   return diagnoseDevelopmentFailure(evaluation, raw);
 }
 
+/** 需要升级人工的归因分类 */
+const ESCALATE_CATEGORIES: ReadonlySet<DiagnosisCategory> = new Set([
+  "architecture_mismatch",
+  "requirement_ambiguity",
+]);
+
 async function report(_task: LoopTask, iter: IterationResult): Promise<string> {
   const passOrFail = iter.status === "passed" ? "✅ PASS" : "❌ FAIL";
   const gates = iter.evaluation.hard_gates
     .map((g) => `${g.gate}=${g.passed ? "✓" : "✗"}`)
     .join(" ");
   const sha = iter.commit_sha ? ` [${iter.commit_sha.slice(0, 7)}]` : "";
+  const cat = iter.diagnosis?.category;
+  const categoryTag = cat ? ` [${cat}]` : "";
+  const escalateTag =
+    cat && ESCALATE_CATEGORIES.has(cat as DiagnosisCategory) ? " ⚠️ESCALATE" : "";
   const reason =
     iter.status === "failed" && iter.diagnosis
       ? `\n  └─ ${iter.diagnosis.reason}`
       : "";
-  return `iter ${iter.iteration}: ${passOrFail} ${gates}${sha}${reason}`;
+  return `iter ${iter.iteration}: ${passOrFail}${categoryTag}${escalateTag} ${gates}${sha}${reason}`;
 }
 
 // ============================================================================

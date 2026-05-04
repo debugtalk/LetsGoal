@@ -11,6 +11,7 @@
 import type { Diagnosis, EvaluationResult } from "../../../core/scripts/types.js";
 import { DEV_GATE_NAMES } from "./types.js";
 import type { EvaluatorResult, EvaluatorRunResult } from "./types.js";
+import { classifyFailure } from "./classifier.js";
 
 /** stderr_tail 抽取的最大行数(作为 evidence) */
 const EVIDENCE_LINES_PER_GATE = 8;
@@ -84,7 +85,10 @@ export function diagnoseDevelopmentFailure(
     }
   }
 
+  const category = classifyFailure(evaluation, evaluatorResult);
+
   return {
+    category: category === "unknown" ? undefined : category,
     reason: reasonParts.join("; "),
     evidence: evidence.length > 0 ? evidence : undefined,
   };

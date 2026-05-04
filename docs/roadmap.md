@@ -13,14 +13,14 @@
 
 ## M0 — 开发调试最小闭环
 
-| 事项 | 状态 |
-|------|------|
-| 单循环引擎（self_loop.ts） | ✅ 已完成 |
-| Development adapter（plan/execute/evaluate/diagnose/report） | ✅ 已完成 |
-| 三件套 evaluator（lint/typecheck/test） | ✅ 已完成 |
-| 命令发现策略 | ✅ 已完成 |
-| 3 个白盒 fixture（F1/F2/F3） | ✅ 已完成 |
-| M0 验收：F1/F2/F3 在 ≤3 轮通过 | ✅ 已完成 |
+| 事项                                                       | 状态    |
+| -------------------------------------------------------- | ----- |
+| 单循环引擎（self_loop.ts）                                      | ✅ 已完成 |
+| Development adapter（plan/execute/evaluate/repair/report） | ✅ 已完成 |
+| 三件套 evaluator（lint/typecheck/test）                       | ✅ 已完成 |
+| 命令发现策略                                                   | ✅ 已完成 |
+| 3 个白盒 fixture（F1/F2/F3）                                  | ✅ 已完成 |
+| M0 验收：F1/F2/F3 在 ≤3 轮通过                                  | ✅ 已完成 |
 
 ## M1 — Skill + 评测 + 归因
 
