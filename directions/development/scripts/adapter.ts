@@ -22,9 +22,10 @@ import { executeIteration } from "./executor.js";
 import { diagnoseDevelopmentFailure } from "./diagnose.js";
 import { type DiagnosisCategory } from "./classifier.js";
 import { asDevPayload, DEV_GATE_NAMES, type DevGateName, type EvaluatorResult, type EvaluatorRunResult } from "./types.js";
+import { freezeEvalSuite, verifyEvalSuite, type EvalSuiteRecord } from "./eval_suite.js";
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 // ============================================================================
@@ -132,6 +133,16 @@ async function plan(task: LoopTask): Promise<LoopTask> {
   // 准备 workspace 目录（self_loop 已创建 .letsgoal/，这里只确保 iterations/ 存在）
   mkdirSync(resolve(task.workspace_path, ".letsgoal", "iterations"), { recursive: true });
 
+  // 冻结评测集
+  if (dev.eval_suite) {
+    const record = await freezeEvalSuite(dev.project_root, dev.eval_suite);
+    writeFileSync(
+      resolve(task.workspace_path, ".letsgoal", "eval-suite.json"),
+      JSON.stringify(record, null, 2) + "\n",
+      "utf-8",
+    );
+  }
+
   return task;
 }
 
@@ -171,6 +182,21 @@ async function evaluate(
   task: LoopTask,
   iteration: number,
 ): Promise<EvaluationResult> {
+  // 校验评测集冻结状态
+  const evalSuitePath = resolve(task.workspace_path, ".letsgoal", "eval-suite.json");
+  if (existsSync(evalSuitePath)) {
+    const dev = asDevPayload(task.direction_payload);
+    if (dev.eval_suite) {
+      const record = JSON.parse(readFileSync(evalSuitePath, "utf-8")) as EvalSuiteRecord;
+      if (record.frozen) {
+        const valid = await verifyEvalSuite(dev.project_root, record, dev.eval_suite);
+        if (!valid) {
+          throw new Error("评测集校验失败：自循环开始后评测标准文件发生了变化");
+        }
+      }
+    }
+  }
+
   const raw = await evaluateTask(task);
   evaluatorResultByIter.set(iteration, raw);
   return evaluatorResultToEvaluation(task, raw);

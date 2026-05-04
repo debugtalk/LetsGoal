@@ -47,6 +47,7 @@ export interface DevTaskRequest {
   task_type?: DevTaskType; // 默认 feature
   bug_repro?: string; // task_type=bugfix 时必填
   coverage_target?: number; // M2 启用,M0/M1 忽略
+  eval_suite?: { version: string; files: string[] }; // 评测集版本冻结
 }
 
 /**

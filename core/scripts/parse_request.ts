@@ -184,6 +184,10 @@ interface ConfigYaml {
     test?: string;
   };
   coverage_target?: number;
+  eval_suite?: {
+    version: string;
+    files: string[];
+  };
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -301,6 +305,21 @@ export function parseMarkdownTask(
   if (bugRepro.length > 0) devPayload.bug_repro = bugRepro;
   if (typeof config.coverage_target === "number") {
     devPayload.coverage_target = config.coverage_target;
+  }
+  if (config.eval_suite) {
+    if (
+      typeof config.eval_suite.version !== "string" ||
+      config.eval_suite.version.length === 0
+    ) {
+      throw new Error("eval_suite.version 必须是非空字符串");
+    }
+    if (
+      !Array.isArray(config.eval_suite.files) ||
+      config.eval_suite.files.length === 0
+    ) {
+      throw new Error("eval_suite.files 必须是非空数组");
+    }
+    devPayload.eval_suite = config.eval_suite;
   }
 
   // ---------- 组装 LoopTask ----------
