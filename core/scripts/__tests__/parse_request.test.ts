@@ -330,4 +330,65 @@ task_type: feature
       status: "pending",
     });
   });
+
+  it("should parse ## 原始需求 section", () => {
+    const md = `
+## 目标
+实现用户登录
+
+## 原始需求
+我们需要一个安全的登录系统，支持邮箱和手机号登录，需要记住我功能
+
+## 项目根目录
+/tmp/project
+
+## 配置
+\`\`\`yaml
+task_type: feature
+\`\`\`
+`;
+    const task = parseMarkdownTask(md, {
+      requestPath: "/tmp/request.md",
+      workspacePath: "/tmp/workspace",
+    });
+
+    expect(task.raw_requirement).toContain("安全的登录系统");
+  });
+
+  it("should parse feishu config fields from loop_config", () => {
+    const md = `
+## 目标
+do something
+
+## 项目根目录
+/tmp/project
+
+## 配置
+\`\`\`yaml
+loop_config:
+  max_iterations: 5
+  feishu_chat_id: oc_abc123
+  notify_channel: both
+\`\`\`
+`;
+    const task = parseMarkdownTask(md, {
+      requestPath: "/tmp/request.md",
+      workspacePath: "/tmp/workspace",
+    });
+
+    expect(task.config.feishu_chat_id).toBe("oc_abc123");
+    expect(task.config.notify_channel).toBe("both");
+  });
+
+  it("should leave feishu fields undefined when not specified", () => {
+    const task = parseMarkdownTask(VALID_REQUEST, {
+      requestPath: "/tmp/request.md",
+      workspacePath: "/tmp/workspace",
+    });
+
+    expect(task.config.feishu_doc_url).toBeUndefined();
+    expect(task.config.feishu_doc_id).toBeUndefined();
+    expect(task.config.feishu_chat_id).toBeUndefined();
+    expect(task.config.notify_channel).toBeUndefined();
+  });
 });

@@ -101,7 +101,7 @@ describe("loadResumedState", () => {
     expect(loadResumedState(tmpDir)).toBeNull();
   });
 
-  it("returns null when status is not awaiting_human or paused", () => {
+  it("returns null when status is not awaiting_human, paused or awaiting_review", () => {
     const lgDir = resolve(tmpDir, ".letsgoal");
     mkdirSync(lgDir, { recursive: true });
     writeFileSync(
@@ -188,6 +188,33 @@ describe("loadResumedState", () => {
     expect(state!.iterations).toHaveLength(2);
     expect(state!.prevDiagnosis?.category).toBe("type_error");
     expect(state!.prevEvaluation?.hard_gates[0]?.gate).toBe("typecheck");
+  });
+
+  it("restores task from task-state.json when status is awaiting_review", () => {
+    const lgDir = resolve(tmpDir, ".letsgoal");
+    mkdirSync(lgDir, { recursive: true });
+    const task = {
+      task_id: "test-review",
+      goal: "review goal",
+      direction: "development",
+      status: "awaiting_review",
+      current_iteration: 0,
+      best_score: 0,
+      best_iteration: 0,
+      config: { max_iterations: 4, min_score: 1.0, autonomy_mode: "standard" },
+      workspace_path: tmpDir,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    writeFileSync(
+      resolve(lgDir, "task-state.json"),
+      JSON.stringify(task),
+    );
+
+    const state = loadResumedState(tmpDir);
+    expect(state).not.toBeNull();
+    expect(state!.task.task_id).toBe("test-review");
+    expect(state!.task.status).toBe("running");
   });
 
   it("sets task status to running when resuming from awaiting_human", () => {

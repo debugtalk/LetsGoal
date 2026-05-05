@@ -66,7 +66,7 @@ export function loadResumedState(workspacePath: string): ResumedState | null {
     throw e;
   }
 
-  if (raw.status !== "awaiting_human" && raw.status !== "paused") return null;
+  if (raw.status !== "awaiting_human" && raw.status !== "paused" && raw.status !== "awaiting_review") return null;
 
   const task: LoopTask = { ...raw, status: "running" };
 

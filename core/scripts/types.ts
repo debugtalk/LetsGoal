@@ -15,6 +15,7 @@ export type LoopDirection = "development" | "data-collection" | "model-tuning";
 
 export type TaskStatus =
   | "draft" // 已创建,未启动
+  | "awaiting_review" // 需求已结构化,等待用户确认(M2.6)
   | "running" // 正在循环
   | "awaiting_human" // 等待人工决策
   | "passed" // 通过验收
@@ -43,6 +44,30 @@ export interface Story {
   id: string;
   title: string;
   status: "pending" | "passed" | "failed";
+}
+
+// ============================================================================
+// 需求 Review(M2.6)
+// ============================================================================
+
+/**
+ * 需求结构化输出。reviewRequirement() 的返回值。
+ */
+export interface ReviewOutput {
+  raw_requirement: string;
+  clarified_goal: string;
+  suggested_constraints: string[];
+  suggested_stories: { id: string; title: string }[];
+  questions: string[];
+  confidence: number; // ∈ [0,1]
+}
+
+/**
+ * 飞书文档引用。createDoc() 的返回值。
+ */
+export interface FeishuDocRef {
+  doc_url: string;
+  doc_id: string;
 }
 
 // ============================================================================
@@ -150,6 +175,10 @@ export interface LoopConfig {
   min_score: number; // 默认 0.92
   autonomy_mode?: AutonomyMode; // M2 启用,M0/M1 默认 standard
   execution_style?: ExecutionStyle; // M2.5 启用,覆盖 adapter 默认值
+  feishu_doc_url?: string; // 飞书文档 URL(review 后填充)
+  feishu_doc_id?: string; // 飞书文档 ID(review 后填充)
+  feishu_chat_id?: string; // 飞书群聊 ID(通知用)
+  notify_channel?: "terminal" | "feishu" | "both"; // 通知通道,默认 terminal
 }
 
 /**
@@ -174,6 +203,7 @@ export interface LoopTask {
   best_iteration: number; // 取得最佳分数的轮次
   direction_payload: Record<string, unknown>; // 方向特异字段
   stories?: Story[]; // M2.5: Story 级追踪(可选)
+  raw_requirement?: string; // M2.6: 原始需求(## 原始需求 section)
   created_at: string;
   updated_at: string;
 }

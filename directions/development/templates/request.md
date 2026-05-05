@@ -9,6 +9,10 @@
 
 <一两句话描述这个任务要做什么。例：实现一个 fizzbuzz 函数，通过测试用例。>
 
+## 原始需求
+
+<可选。用自然语言描述需求,系统会自动结构化并创建飞书文档供确认。留空则跳过 review 阶段,直接使用 ## 目标 进入 plan。>
+
 ## 项目根目录
 
 <被开发项目的绝对路径，例：/home/user/projects/my-app>
@@ -56,6 +60,9 @@ loop_config:
   min_score: 0.92
   # 渐进式自主:strict | standard | autonomous(M2 启用,M0/M1 默认 standard)
   autonomy_mode: standard
+  # 飞书集成(M2.6 启用,可选)
+  # feishu_chat_id: <飞书群聊 ID,用于通知>
+  # notify_channel: terminal | feishu | both(默认 terminal)
 
 # 三件套命令(可选)。省略字段时按以下顺序 fallback:
 #   1. package.json scripts.<name>

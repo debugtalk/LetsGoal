@@ -177,6 +177,39 @@ export const developmentAdapter: DirectionAdapter = {
 - story 级独立评估（当前仍使用任务级评估）
 - 飞书通知 / 飞书表格
 
+## M2.6 范围
+
+> 核心设计原则：飞书文档是 M2.6 的中心载体——需求输入、任务拆解确认、迭代过程记录都围绕同一份飞书文档展开。lark-cli 是必须依赖。
+
+**做**:
+
+- **Skill 触发机制**：使用 Claude Code 标准 skill 安装方式（`npx skills add`），用户在任意项目中输入 `/letsgoal` 即可激活
+- **飞书文档需求流**：
+  - 用户通过 `/letsgoal` 输入需求内容（概括性描述，自然语言）
+  - 系统基于用户输入生成飞书文档，按照 request.md 格式进行结构化 + 需求补充
+  - 通过 `lark-cli docs +create` 创建飞书文档
+  - 用户确认后进入开发迭代（可在飞书文档中修改补充后确认）
+  - 后续迭代记录以 append 方式追加到同一份飞书文档
+- **关键决策通知**：
+  - 终端通知为默认通道（零配置），飞书消息通知可选
+  - 通知事件：escalation（始终通知）、awaiting_human（始终通知）、consecutive_failures（同 category 连续 3 次）、task_completed
+  - 飞书通知通过 `lark-cli im +messages-send --chat-id <id> --markdown "..."`
+- **迭代过程记录**：每轮迭代关键进展和结论以 append 方式写入飞书文档，只追加不修改
+- **软分维度补全**：
+  - smells：解析 lint warning 计数归一化
+  - complexity：eslint complexity 规则或 changed files 启发式
+  - docs：文档文件变更检测
+- **L0-L3 分层评估**：重构 evaluator 为 L0（lint+typecheck）→ L1（test）→ L2（coverage+soft）→ L3（skill），每层失败短路
+- **归因分类器增强**：
+  - 新增跨迭代模式规则（同 category 连续 3 次 → architecture_mismatch）
+  - 新增单迭代增强规则（循环依赖、Claude 放弃提交等 → requirement_ambiguity / architecture_mismatch）
+  - `classifyFailure` 增加 `iterationHistory` 可选参数
+
+**不做**:
+- 飞书多维表格状态追踪（M3）
+- CI/CD 集成（M3）
+- 多任务并行（M3）
+
 ## M0 范围
 
 **做**:

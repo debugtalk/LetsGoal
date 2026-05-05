@@ -205,6 +205,10 @@ interface ConfigYaml {
     min_score?: number;
     autonomy_mode?: AutonomyMode;
     execution_style?: ExecutionStyle;
+    feishu_doc_url?: string;
+    feishu_doc_id?: string;
+    feishu_chat_id?: string;
+    notify_channel?: "terminal" | "feishu" | "both";
   };
   commands?: {
     lint?: string;
@@ -286,6 +290,10 @@ export function parseMarkdownTask(
   const bugReproRaw = sectionMap.get("Bug 复现") ?? sectionMap.get("Bug复现") ?? "";
   const bugRepro = bugReproRaw === "" ? "" : extractScalar(bugReproRaw);
 
+  // ---------- 可选:原始需求 ----------
+  const rawRequirementRaw = sectionMap.get("原始需求") ?? "";
+  const rawRequirement = rawRequirementRaw === "" ? "" : extractScalar(rawRequirementRaw);
+
   // ---------- 必填:配置 YAML ----------
   const configRaw = sectionMap.get("配置");
   if (configRaw === undefined) {
@@ -313,6 +321,10 @@ export function parseMarkdownTask(
     autonomy_mode:
       config.loop_config?.autonomy_mode ?? DEFAULT_LOOP_CONFIG.autonomy_mode,
     execution_style: config.loop_config?.execution_style,
+    feishu_doc_url: config.loop_config?.feishu_doc_url,
+    feishu_doc_id: config.loop_config?.feishu_doc_id,
+    feishu_chat_id: config.loop_config?.feishu_chat_id,
+    notify_channel: config.loop_config?.notify_channel,
   };
 
   // ---------- 可选:Story 级追踪 ----------
@@ -371,6 +383,7 @@ export function parseMarkdownTask(
     best_iteration: 0,
     direction_payload: devPayload as unknown as Record<string, unknown>,
     stories: stories && stories.length > 0 ? stories : undefined,
+    raw_requirement: rawRequirement.length > 0 ? rawRequirement : undefined,
     created_at: now,
     updated_at: now,
   };

@@ -32,6 +32,7 @@ import {
   type LoopDirection,
   type LoopTask,
   type NextAction,
+  type ReviewOutput,
 } from "./types.js";
 
 import { parseMarkdownTask } from "./parse_request.js";
@@ -40,6 +41,8 @@ import {
   shouldPauseOnEscalation,
   loadResumedState,
 } from "./autonomy.js";
+import { reviewRequirement, generateReviewMarkdown } from "./review.js";
+import { createDoc, isLarkCliAvailable } from "./feishu.js";
 
 // ============================================================================
 // CLI 参数
@@ -179,6 +182,68 @@ function pauseForHuman(task: LoopTask, message: string): number {
 }
 
 // ============================================================================
+// Review 阶段(M2.6)
+// ============================================================================
+
+async function runReviewPhase(task: LoopTask): Promise<LoopTask> {
+  const rawInput = task.raw_requirement ?? task.goal;
+  process.stdout.write(`[self-loop] review 阶段: 结构化需求...\n`);
+
+  let review: ReviewOutput;
+  try {
+    review = await reviewRequirement(rawInput);
+  } catch (e) {
+    process.stderr.write(
+      `[self-loop] review 需求结构化失败: ${(e as Error).message}\n`,
+    );
+    // 结构化失败,跳过 review 阶段,直接进入 plan
+    return task;
+  }
+
+  // 尝试创建飞书文档
+  const notifyChannel = task.config.notify_channel ?? "terminal";
+  const markdown = generateReviewMarkdown(review);
+
+  if (isLarkCliAvailable() && (notifyChannel === "feishu" || notifyChannel === "both")) {
+    try {
+      const docRef = await createDoc(
+        `需求 Review: ${task.goal.slice(0, 50)}`,
+        markdown,
+      );
+      task.config.feishu_doc_url = docRef.doc_url;
+      task.config.feishu_doc_id = docRef.doc_id;
+      process.stdout.write(
+        `[self-loop] 飞书文档已创建: ${docRef.doc_url}\n`,
+      );
+    } catch (e) {
+      process.stderr.write(
+        `[self-loop] 飞书文档创建失败: ${(e as Error).message}\n`,
+      );
+    }
+  }
+
+  // 在终端输出结构化摘要
+  process.stdout.write(`\n${markdown}\n\n`);
+
+  if (task.config.feishu_doc_url) {
+    process.stdout.write(
+      `[self-loop] 请在飞书文档中确认需求: ${task.config.feishu_doc_url}\n`,
+    );
+  }
+  process.stdout.write(
+    `[self-loop] 需求已结构化,等待确认后 --resume 继续\n`,
+  );
+
+  // 保存 review 结果到 direction_payload 以便后续使用
+  task.direction_payload._review_output = review as unknown as Record<string, unknown>;
+  task.status = "awaiting_review";
+  task.updated_at = new Date().toISOString();
+  saveTaskState(task);
+
+  return task;
+}
+
+// ============================================================================
 // 主循环
 // ============================================================================
 
@@ -216,10 +281,26 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
   ensureLgDir(task);
   saveTaskState(task);
 
-  // 2. 加载 adapter
+  // 2. review 阶段(resume 且状态为 awaiting_review 时也进入此分支)
+  if (!args.resume && task.raw_requirement) {
+    task = await runReviewPhase(task);
+    if (task.status === "awaiting_review") {
+      return 10; // 等待用户确认后 --resume
+    }
+  } else if (args.resume && task.status === "awaiting_review") {
+    process.stdout.write(
+      `[self-loop] resume from awaiting_review, task_id=${task.task_id}\n`,
+    );
+    // 用户确认后进入 plan
+    task.status = "draft";
+    task.updated_at = new Date().toISOString();
+    saveTaskState(task);
+  }
+
+  // 3. 加载 adapter
   const adapter = await loadAdapter(args.direction);
 
-  // 3. plan 阶段（resume 时跳过，plan 已在首次运行时执行）
+  // 3. plan 阶段（resume 时跳过，plan 已在首次运行时执行）— 注意编号已变，这是原 step 3
   if (!args.resume) {
     task = await adapter.plan(task);
     saveTaskState(task);
