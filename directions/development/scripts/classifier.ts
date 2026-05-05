@@ -120,5 +120,10 @@ export function classifyFailure(
     return "coverage_insufficient";
   }
 
+  // Coverage 硬门禁失败（actual < target）
+  if (failedGateNames.has("coverage")) {
+    return "coverage_insufficient";
+  }
+
   return "unknown";
 }

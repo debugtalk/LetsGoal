@@ -83,6 +83,21 @@ export function diagnoseDevelopmentFailure(
     }
   }
 
+  // Coverage 门禁失败时补充覆盖率细节
+  const coverageGate = failedGates.find((g) => g.gate === "coverage");
+  if (coverageGate) {
+    reasonParts.push(coverageGate.detail ?? "coverage gate failed");
+    evidence.push(`[coverage] ${coverageGate.detail ?? "coverage gate failed"}`);
+  }
+
+  // coverage_insufficient 但硬门禁全通过 → 从软分提取覆盖率细节
+  if (evaluation.soft_scores) {
+    const coverageScore = evaluation.soft_scores.find((s) => s.name === "coverage");
+    if (coverageScore && coverageScore.score < 1.0) {
+      reasonParts.push(`coverage soft score: ${coverageScore.score.toFixed(2)} (weight=${coverageScore.weight})`);
+    }
+  }
+
   const category = classifyFailure(evaluation, evaluatorResult);
 
   return {

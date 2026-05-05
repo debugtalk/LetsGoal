@@ -350,6 +350,21 @@ describe("classifyFailure — coverage_insufficient", () => {
 
     expect(classifyFailure(evaluation)).toBe("test_failure");
   });
+
+  it("coverage 硬门禁失败 → coverage_insufficient", () => {
+    const evaluation: EvaluationResult = {
+      hard_gates: [
+        { gate: "lint", passed: true },
+        { gate: "typecheck", passed: true },
+        { gate: "test", passed: true },
+        { gate: "coverage", passed: false, detail: "覆盖率 60.0% 低于目标 80.0%" },
+      ],
+      hard_gates_all_passed: false,
+      weighted_score: 0.0,
+    };
+
+    expect(classifyFailure(evaluation)).toBe("coverage_insufficient");
+  });
 });
 
 describe("classifyFailure — 规则未覆盖的分类返回 unknown", () => {

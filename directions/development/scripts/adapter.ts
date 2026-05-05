@@ -22,6 +22,7 @@ import { executeIteration } from "./executor.js";
 import { diagnoseDevelopmentFailure } from "./diagnose.js";
 import { ESCALATE_CATEGORIES, isDiagnosisCategory } from "./classifier.js";
 import { asDevPayload, DEV_GATE_NAMES, type EvaluatorResult, type EvaluatorRunResult } from "./types.js";
+import { computeSoftScores, computeWeightedScore, extractCoverageFromOutput } from "./soft_scorer.js";
 import { freezeEvalSuite, verifyEvalSuite, type EvalSuiteRecord } from "./eval_suite.js";
 
 import { spawnSync } from "node:child_process";
@@ -95,11 +96,35 @@ function evaluatorResultToEvaluation(
     if (gate !== null) hardGates.push(gate);
   }
 
+  // Coverage 门禁（M2）：从测试输出提取覆盖率，低于 target 则失败
+  const dev = asDevPayload(task.direction_payload);
+  const coverageTarget = dev.coverage_target ?? 0.8;
+  if (requiredGates.has("coverage")) {
+    const stdout = raw.test?.stdout_tail ?? "";
+    const extracted = extractCoverageFromOutput(stdout);
+    if (extracted === undefined) {
+      hardGates.push({
+        gate: "coverage",
+        passed: false,
+        detail: "未找到覆盖率数据（需要测试命令输出覆盖率报告）",
+      });
+    } else if (extracted < coverageTarget) {
+      hardGates.push({
+        gate: "coverage",
+        passed: false,
+        detail: `覆盖率 ${(extracted * 100).toFixed(1)}% 低于目标 ${(coverageTarget * 100).toFixed(1)}%`,
+      });
+    } else {
+      hardGates.push({ gate: "coverage", passed: true });
+    }
+  }
+
   // 检查 success_criteria 中是否还有未覆盖的门禁
   const knownGates = new Set([
     ...DEV_GATE_NAMES,
     "skill_syntax",
     "skill_eval",
+    "coverage",
   ]);
   for (const required of requiredGates) {
     if (!knownGates.has(required)) {
@@ -112,11 +137,15 @@ function evaluatorResultToEvaluation(
   }
 
   const allPassed = hardGates.every((g) => g.passed);
-  const weightedScore = allPassed ? 1.0 : 0.0;
+
+  // M2: 加权软分。硬门禁通过时从 EvaluatorResult 计算软分，否则 weighted_score = 0。
+  const softScores = allPassed ? computeSoftScores(raw, coverageTarget) : undefined;
+  const weightedScore = allPassed ? computeWeightedScore(softScores!) : 0.0;
 
   return {
     hard_gates: hardGates,
     hard_gates_all_passed: allPassed,
+    soft_scores: softScores,
     weighted_score: weightedScore,
   };
 }
