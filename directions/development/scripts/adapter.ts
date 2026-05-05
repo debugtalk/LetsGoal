@@ -23,6 +23,7 @@ import { diagnoseDevelopmentFailure } from "./diagnose.js";
 import { ESCALATE_CATEGORIES, isDiagnosisCategory } from "./classifier.js";
 import { asDevPayload, DEV_GATE_NAMES, type EvaluatorResult, type EvaluatorRunResult } from "./types.js";
 import { computeSoftScores, computeWeightedScore, extractCoverageFromOutput } from "./soft_scorer.js";
+import { reportVerbosity } from "../../../core/scripts/autonomy.js";
 import { freezeEvalSuite, verifyEvalSuite, type EvalSuiteRecord } from "./eval_suite.js";
 
 import { spawnSync } from "node:child_process";
@@ -99,20 +100,19 @@ function evaluatorResultToEvaluation(
   // Coverage 门禁（M2）：从测试输出提取覆盖率，低于 target 则失败
   const dev = asDevPayload(task.direction_payload);
   const coverageTarget = dev.coverage_target ?? 0.8;
+  const coverageExtracted = extractCoverageFromOutput(raw.test?.stdout_tail ?? "");
   if (requiredGates.has("coverage")) {
-    const stdout = raw.test?.stdout_tail ?? "";
-    const extracted = extractCoverageFromOutput(stdout);
-    if (extracted === undefined) {
+    if (coverageExtracted === undefined) {
       hardGates.push({
         gate: "coverage",
         passed: false,
         detail: "未找到覆盖率数据（需要测试命令输出覆盖率报告）",
       });
-    } else if (extracted < coverageTarget) {
+    } else if (coverageExtracted < coverageTarget) {
       hardGates.push({
         gate: "coverage",
         passed: false,
-        detail: `覆盖率 ${(extracted * 100).toFixed(1)}% 低于目标 ${(coverageTarget * 100).toFixed(1)}%`,
+        detail: `覆盖率 ${(coverageExtracted * 100).toFixed(1)}% 低于目标 ${(coverageTarget * 100).toFixed(1)}%`,
       });
     } else {
       hardGates.push({ gate: "coverage", passed: true });
@@ -139,7 +139,7 @@ function evaluatorResultToEvaluation(
   const allPassed = hardGates.every((g) => g.passed);
 
   // M2: 加权软分。硬门禁通过时从 EvaluatorResult 计算软分，否则 weighted_score = 0。
-  const softScores = allPassed ? computeSoftScores(raw, coverageTarget) : undefined;
+  const softScores = allPassed ? computeSoftScores(raw, coverageTarget, coverageExtracted) : undefined;
   const weightedScore = allPassed ? computeWeightedScore(softScores!) : 0.0;
 
   return {
@@ -253,15 +253,19 @@ async function evaluate(
 }
 
 async function diagnose(
-  _task: LoopTask,
+  task: LoopTask,
   iteration: number,
   evaluation: EvaluationResult,
 ): Promise<Diagnosis> {
   const raw = evaluatorResultByIter.get(iteration);
-  return diagnoseDevelopmentFailure(evaluation, raw);
+  const dev = asDevPayload(task.direction_payload);
+  return diagnoseDevelopmentFailure(evaluation, raw, dev.task_type);
 }
 
-async function report(_task: LoopTask, iter: IterationResult): Promise<string> {
+async function report(task: LoopTask, iter: IterationResult): Promise<string> {
+  const autonomyMode = task.config.autonomy_mode ?? "standard";
+  const verbosity = reportVerbosity(autonomyMode);
+
   const passOrFail = iter.status === "passed" ? "✅ PASS" : "❌ FAIL";
   const gates = iter.evaluation.hard_gates
     .map((g) => `${g.gate}=${g.passed ? "✓" : "✗"}`)
@@ -272,9 +276,15 @@ async function report(_task: LoopTask, iter: IterationResult): Promise<string> {
   const escalateTag =
     cat && isDiagnosisCategory(cat) && ESCALATE_CATEGORIES.has(cat) ? " ⚠️ESCALATE" : "";
   const reason =
-    iter.status === "failed" && iter.diagnosis
+    iter.status === "failed" && iter.diagnosis && verbosity === "full"
       ? `\n  └─ ${iter.diagnosis.reason}`
       : "";
+
+  // autonomous 模式仅输出简洁摘要
+  if (verbosity === "minimal") {
+    return `iter ${iter.iteration}: ${passOrFail} ${gates}${sha}`;
+  }
+
   return `iter ${iter.iteration}: ${passOrFail}${categoryTag}${escalateTag} ${gates}${sha}${reason}`;
 }
 
@@ -284,6 +294,7 @@ async function report(_task: LoopTask, iter: IterationResult): Promise<string> {
 
 export const developmentAdapter: DirectionAdapter = {
   direction: "development",
+  escalate_categories: ESCALATE_CATEGORIES,
   plan,
   execute,
   evaluate,

@@ -12,7 +12,7 @@ import type {
   IterationResult,
   LoopTask,
 } from "./types.js";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 // ============================================================================
@@ -38,7 +38,7 @@ export function shouldPauseOnEscalation(mode: AutonomyMode): boolean {
   return mode === "strict";
 }
 
-export function claudePermissionMode(mode: AutonomyMode): string {
+export function claudePermissionMode(mode: AutonomyMode): "default" | "bypassPermissions" {
   return mode === "strict" ? "default" : "bypassPermissions";
 }
 
@@ -56,9 +56,15 @@ export function loadResumedState(workspacePath: string): ResumedState | null {
   const lgDir = resolve(workspacePath, ".letsgoal");
   const statePath = resolve(lgDir, "task-state.json");
 
-  if (!existsSync(statePath)) return null;
-
-  const raw = JSON.parse(readFileSync(statePath, "utf-8")) as LoopTask;
+  let raw: LoopTask;
+  try {
+    raw = JSON.parse(readFileSync(statePath, "utf-8")) as LoopTask;
+  } catch (e: unknown) {
+    if (e instanceof Error && "code" in e && (e as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw e;
+  }
 
   if (raw.status !== "awaiting_human" && raw.status !== "paused") return null;
 
@@ -67,7 +73,7 @@ export function loadResumedState(workspacePath: string): ResumedState | null {
   const iterationsPath = resolve(lgDir, "iterations.jsonl");
   const iterations: IterationResult[] = [];
 
-  if (existsSync(iterationsPath)) {
+  try {
     const content = readFileSync(iterationsPath, "utf-8").trim();
     if (content.length > 0) {
       for (const line of content.split("\n")) {
@@ -76,6 +82,10 @@ export function loadResumedState(workspacePath: string): ResumedState | null {
           iterations.push(JSON.parse(trimmed) as IterationResult);
         }
       }
+    }
+  } catch (e: unknown) {
+    if (!(e instanceof Error && "code" in e && (e as NodeJS.ErrnoException).code === "ENOENT")) {
+      throw e;
     }
   }
 

@@ -22,6 +22,7 @@ import {
 import { resolve, dirname } from "node:path";
 
 import type {
+  AutonomyMode,
   Diagnosis,
   LoopTask,
 } from "../../../core/scripts/types.js";
@@ -32,6 +33,7 @@ import type {
 import { asDevPayload } from "./types.js";
 import { CATEGORY_REPAIR_HINTS, isDiagnosisCategory } from "./classifier.js";
 import type { DiagnosisCategory } from "./classifier.js";
+import { claudePermissionMode } from "../../../core/scripts/autonomy.js";
 
 // ============================================================================
 // 配置
@@ -116,6 +118,14 @@ export function buildPrompt(input: ExecutorInput): string {
   const blocks: string[] = [];
   blocks.push(PROMPT_HEADER);
 
+  // 自主模式上下文（M2）
+  const autonomyMode = task.config.autonomy_mode ?? "standard";
+  if (autonomyMode === "strict") {
+    blocks.push("# 自主模式：strict\n你处于严格自主模式。在重大架构决策前应暂停，不要做出可能破坏系统的变更。优先安全性和可回退性。");
+  } else if (autonomyMode === "autonomous") {
+    blocks.push("# 自主模式：autonomous\n你处于完全自主模式。自行做出所有决策，优先效率和完整性。");
+  }
+
   // 任务核心
   blocks.push(`# 任务目标\n${task.goal}`);
   blocks.push(`# 项目根目录\n${dev.project_root}`);
@@ -123,6 +133,28 @@ export function buildPrompt(input: ExecutorInput): string {
 
   if (dev.task_type === "bugfix" && dev.bug_repro) {
     blocks.push(`# Bug 复现\n${dev.bug_repro}`);
+  }
+
+  if (dev.task_type === "bugfix") {
+    blocks.push(
+      "# Bugfix 策略\n" +
+      "你正在修复 bug。遵循以下步骤：\n" +
+      "1. 根据 Bug 复现步骤确认 bug 存在\n" +
+      "2. 定位根本原因（不要只修表面症状）\n" +
+      "3. 编写最小化修复（不要重写整段逻辑）\n" +
+      "4. 确保修复不会破坏现有测试",
+    );
+  }
+
+  if (dev.task_type === "refactor") {
+    blocks.push(
+      "# Refactor 策略\n" +
+      "你正在重构代码。关键约束：\n" +
+      "1. 所有现有测试必须继续通过——重构不改变行为\n" +
+      "2. 不改变公共 API（函数签名、导出名称、返回类型）\n" +
+      "3. 不添加新功能——只重组现有代码\n" +
+      "4. 每次提交只做一项重构，便于回滚",
+    );
   }
 
   if (dev.task_type === "skill_creation") {
@@ -233,10 +265,12 @@ function spawnExecutorProcess(
   cwd: string,
   logPath: string,
   timeoutMs: number,
+  autonomyMode: AutonomyMode,
 ): Promise<SpawnClaudeResult> {
   return new Promise((res, rej) => {
     const cmd = process.env.LETSGOAL_EXECUTOR_CMD ?? DEFAULT_EXECUTOR_CMD;
-    const args = ["-p", prompt, "--permission-mode", "bypassPermissions"];
+    const permissionMode = claudePermissionMode(autonomyMode);
+    const args = ["-p", prompt, "--permission-mode", permissionMode];
 
     const startedAt = Date.now();
     let timedOut = false;
@@ -472,6 +506,7 @@ export async function executeIteration(
     dev.project_root,
     logPath,
     timeoutMs,
+    input.task.config.autonomy_mode ?? "standard",
   );
 
   // 即使 Claude 异常退出也要尝试收 git 状态

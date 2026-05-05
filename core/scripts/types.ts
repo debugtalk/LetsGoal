@@ -173,6 +173,9 @@ export interface LoopTask {
 export interface DirectionAdapter {
   direction: LoopDirection;
 
+  /** 需要升级人工的归因分类集合，core 据此决定是否暂停循环 */
+  escalate_categories: ReadonlySet<string>;
+
   /** Plan 阶段:解析需求 + 校验 + 准备 workspace */
   plan(task: LoopTask): Promise<LoopTask>;
 

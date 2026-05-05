@@ -35,6 +35,11 @@ import {
 } from "./types.js";
 
 import { parseMarkdownTask } from "./parse_request.js";
+import {
+  shouldPauseBeforeExecution,
+  shouldPauseOnEscalation,
+  loadResumedState,
+} from "./autonomy.js";
 
 // ============================================================================
 // CLI 参数
@@ -164,21 +169,49 @@ function escapeMd(s: string): string {
   return s.replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
+/** 暂停循环等待人工，返回 awaiting_human 退出码 */
+function pauseForHuman(task: LoopTask, message: string): number {
+  task.status = "awaiting_human";
+  task.updated_at = new Date().toISOString();
+  saveTaskState(task);
+  process.stdout.write(`[self-loop] ${message}\n`);
+  return 10;
+}
+
 // ============================================================================
 // 主循环
 // ============================================================================
 
 async function runSelfLoop(args: CliArgs): Promise<number> {
-  // 1. 解析 markdown → LoopTask
-  if (!existsSync(args.input)) {
-    throw new Error(`输入文件不存在: ${args.input}`);
+  // 1. 解析 markdown → LoopTask，或从 task-state.json 恢复
+  let task: LoopTask;
+  let iterations: IterationResult[] = [];
+  let prevEvaluation: EvaluationResult | undefined;
+  let prevDiagnosis: Diagnosis | undefined;
+
+  if (args.resume) {
+    const state = loadResumedState(args.workspace);
+    if (state === null) {
+      throw new Error(`--resume 失败: ${args.workspace} 中无可恢复的任务状态`);
+    }
+    task = state.task;
+    iterations = state.iterations;
+    prevEvaluation = state.prevEvaluation;
+    prevDiagnosis = state.prevDiagnosis;
+    process.stdout.write(
+      `[self-loop] resume task_id=${task.task_id} from iter ${task.current_iteration}\n`,
+    );
+  } else {
+    if (!existsSync(args.input)) {
+      throw new Error(`输入文件不存在: ${args.input}`);
+    }
+    const md = readFileSync(args.input, "utf-8");
+    task = parseMarkdownTask(md, {
+      requestPath: args.input,
+      workspacePath: args.workspace,
+      direction: args.direction,
+    });
   }
-  const md = readFileSync(args.input, "utf-8");
-  let task = parseMarkdownTask(md, {
-    requestPath: args.input,
-    workspacePath: args.workspace,
-    direction: args.direction,
-  });
 
   ensureLgDir(task);
   saveTaskState(task);
@@ -186,9 +219,11 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
   // 2. 加载 adapter
   const adapter = await loadAdapter(args.direction);
 
-  // 3. plan 阶段
-  task = await adapter.plan(task);
-  saveTaskState(task);
+  // 3. plan 阶段（resume 时跳过，plan 已在首次运行时执行）
+  if (!args.resume) {
+    task = await adapter.plan(task);
+    saveTaskState(task);
+  }
 
   if (args.dryRun === true) {
     process.stdout.write(`[self-loop] dry-run 完成,task_id=${task.task_id}\n`);
@@ -199,15 +234,18 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
   task.status = "running";
   saveTaskState(task);
 
-  const iterations: IterationResult[] = [];
-  let prevEvaluation: EvaluationResult | undefined;
-  let prevDiagnosis: Diagnosis | undefined;
-
   process.stdout.write(
     `[self-loop] 启动 task_id=${task.task_id} direction=${task.direction} max=${task.config.max_iterations}\n`,
   );
 
-  for (let iter = 1; iter <= task.config.max_iterations; iter++) {
+  const startIter = args.resume ? task.current_iteration + 1 : 1;
+  const autonomyMode = task.config.autonomy_mode ?? "standard";
+
+  for (let iter = startIter; iter <= task.config.max_iterations; iter++) {
+    // ---- strict 模式暂停检查点 ----
+    if (shouldPauseBeforeExecution(autonomyMode)) {
+      return pauseForHuman(task, `strict 模式: 第 ${iter} 轮执行前暂停，等待人工确认后 --resume 继续`);
+    }
     const startedAt = new Date().toISOString();
     let exec: { changed_files: string[]; commit_sha?: string } = {
       changed_files: [],
@@ -272,6 +310,9 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
     let nextAction: NextAction;
     if (passed) nextAction = "done";
     else if (iter >= task.config.max_iterations) nextAction = "escalate";
+    else if (shouldPauseOnEscalation(autonomyMode) && diagnosis?.category && adapter.escalate_categories.has(diagnosis.category)) {
+      return pauseForHuman(task, `strict 模式: 归因为 ${diagnosis.category}，等待人工确认后 --resume 继续`);
+    }
     else nextAction = "retry";
 
     const iterResult: IterationResult = {

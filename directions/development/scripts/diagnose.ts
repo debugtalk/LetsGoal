@@ -7,7 +7,7 @@
  */
 
 import type { Diagnosis, EvaluationResult } from "../../../core/scripts/types.js";
-import { DEV_GATE_NAMES } from "./types.js";
+import { DEV_GATE_NAMES, type DevTaskType } from "./types.js";
 import type { EvaluatorResult, EvaluatorRunResult } from "./types.js";
 import { classifyFailure } from "./classifier.js";
 
@@ -59,6 +59,7 @@ function gateEvidence(gate: string, r?: EvaluatorRunResult): string[] {
 export function diagnoseDevelopmentFailure(
   evaluation: EvaluationResult,
   evaluatorResult?: EvaluatorResult,
+  taskType?: DevTaskType,
 ): Diagnosis {
   // 全过 → 不应进入这里,但保留兜底
   const failedGates = evaluation.hard_gates.filter((g) => !g.passed);
@@ -98,7 +99,7 @@ export function diagnoseDevelopmentFailure(
     }
   }
 
-  const category = classifyFailure(evaluation, evaluatorResult);
+  const category = classifyFailure(evaluation, evaluatorResult, taskType);
 
   return {
     category: category === "unknown" ? undefined : category,

@@ -6,7 +6,7 @@
  */
 
 import type { EvaluationResult } from "../../../core/scripts/types.js";
-import type { EvaluatorResult } from "./types.js";
+import type { EvaluatorResult, DevTaskType } from "./types.js";
 
 // ============================================================================
 // 分类定义（唯一来源，类型从值推导）
@@ -59,7 +59,7 @@ const INTEGRATION_KEYWORDS = ["ECONNREFUSED", "timeout", "fetch", "API"];
 
 const SYNTAX_KEYWORDS = ["SyntaxError", "Unexpected token"];
 
-const TYPE_KEYWORDS = ["is not assignable", "Property '", "Argument of type", "Type '"];
+const TYPE_KEYWORDS = ["is not assignable", "Property '", "Argument of type", "Type '", "is missing the following properties", "Cannot find module"];
 
 // ============================================================================
 // 分类逻辑
@@ -78,6 +78,7 @@ function containsAny(text: string, patterns: readonly string[]): boolean {
 export function classifyFailure(
   evaluation: EvaluationResult,
   evaluatorResult?: EvaluatorResult,
+  taskType?: DevTaskType,
 ): DiagnosisCategory {
   const failedGateNames = new Set(
     evaluation.hard_gates.filter((g) => !g.passed).map((g) => g.gate),
@@ -123,6 +124,11 @@ export function classifyFailure(
   // Coverage 硬门禁失败（actual < target）
   if (failedGateNames.has("coverage")) {
     return "coverage_insufficient";
+  }
+
+  // Refactor 场景：测试失败意味着重构破坏了行为 → 触发升级
+  if (taskType === "refactor" && testFailed) {
+    return "architecture_mismatch";
   }
 
   return "unknown";

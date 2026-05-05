@@ -47,9 +47,9 @@ export function extractCoverageFromOutput(stdout: string): number | undefined {
 export function computeSoftScores(
   raw: EvaluatorResult,
   coverageTarget: number,
+  precomputedCoverage?: number,
 ): SoftScoreItem[] {
-  const stdout = raw.test?.stdout_tail ?? "";
-  const extracted = extractCoverageFromOutput(stdout);
+  const extracted = precomputedCoverage ?? extractCoverageFromOutput(raw.test?.stdout_tail ?? "");
   const coverageScore = extracted === undefined
     ? 1.0
     : Math.min(extracted / coverageTarget, 1.0);
