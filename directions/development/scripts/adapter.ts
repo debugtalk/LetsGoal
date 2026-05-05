@@ -16,6 +16,7 @@ import type {
   Story,
   ExecutionStyle,
 } from "../../../core/scripts/types.js";
+import { EXECUTION_STYLE_STRUCTURED } from "../../../core/scripts/types.js";
 
 import {
   evaluateTask,
@@ -36,17 +37,12 @@ import { resolve } from "node:path";
 // 跨阶段状态(单实例,M0 不考虑并发)
 // ============================================================================
 
-/**
- * evaluate 阶段拿到的原始 EvaluatorResult 缓存,
- * 在同一轮的 diagnose 阶段被读出以获取 stderr_tail 等细节。
- */
-const evaluatorResultByIter = new Map<number, EvaluatorResult>();
+interface IterCache {
+  evaluator?: EvaluatorResult;
+  aiLearnings?: string;
+}
 
-/**
- * M2.5: executor 阶段产出的 ai_learnings 缓存,
- * 在同一轮的 diagnose 阶段被读出以写入 learnings.md。
- */
-const executorAiLearningsByIter = new Map<number, string | undefined>();
+const iterCache = new Map<number, IterCache>();
 
 // ============================================================================
 // EvaluatorResult → EvaluationResult 转换
@@ -162,28 +158,18 @@ function evaluatorResultToEvaluation(
 // M2.5 辅助函数
 // ============================================================================
 
-/**
- * 解析执行风格: task.config.execution_style > adapter.execution_style() > "structured"
- */
 function resolveExecutionStyle(task: LoopTask, adapter: DirectionAdapter): ExecutionStyle {
-  return task.config.execution_style ?? adapter.execution_style?.() ?? "structured";
+  return task.config.execution_style ?? adapter.execution_style?.() ?? EXECUTION_STYLE_STRUCTURED;
 }
 
-/**
- * 找到当前 pending 的 story。
- */
 function currentPendingStory(task: LoopTask): Story | undefined {
   return task.stories?.find((s) => s.status === "pending");
 }
 
-/**
- * 更新当前 pending story 的状态。
- */
 function updateStoryStatus(task: LoopTask, passed: boolean): void {
   const current = currentPendingStory(task);
   if (!current) return;
   current.status = passed ? "passed" : "failed";
-  current.passes = passed;
 }
 
 // ============================================================================
@@ -242,10 +228,12 @@ async function execute(
     execution_style: style,
   });
   // M2.5: 缓存 AI 自省供 diagnose 阶段使用
-  executorAiLearningsByIter.set(iteration, out.ai_learnings);
+  const cache = iterCache.get(iteration) ?? {};
+  cache.aiLearnings = out.ai_learnings;
+  iterCache.set(iteration, cache);
   // 只保留最近两轮
-  for (const key of [...executorAiLearningsByIter.keys()]) {
-    if (key < iteration - 1) executorAiLearningsByIter.delete(key);
+  for (const key of iterCache.keys()) {
+    if (key < iteration - 1) iterCache.delete(key);
   }
   return {
     changed_files: out.changed_files,
@@ -253,19 +241,12 @@ async function execute(
   };
 }
 
-/**
- * 从 ExecuteContext 中拿"上一轮的原始 EvaluatorResult"。
- *
- * EvaluationResult 是共享类型(对所有方向通用),不含 stderr_tail 等细节。
- * Executor 需要 stderr_tail 来注入 prompt,所以从 evaluator 缓存里取原始结果。
- */
 function extractRawEvaluatorResult(
   _context: ExecuteContext,
   iteration: number,
 ): EvaluatorResult | undefined {
-  // 上一轮是 iteration - 1
   if (iteration <= 1) return undefined;
-  return evaluatorResultByIter.get(iteration - 1);
+  return iterCache.get(iteration - 1)?.evaluator;
 }
 
 async function evaluate(
@@ -288,10 +269,12 @@ async function evaluate(
   }
 
   const raw = await evaluateTask(task);
-  evaluatorResultByIter.set(iteration, raw);
+  const cache = iterCache.get(iteration) ?? {};
+  cache.evaluator = raw;
+  iterCache.set(iteration, cache);
   // 只保留最近两轮的结果（当轮 + 上一轮）
-  for (const key of [...evaluatorResultByIter.keys()]) {
-    if (key < iteration - 1) evaluatorResultByIter.delete(key);
+  for (const key of iterCache.keys()) {
+    if (key < iteration - 1) iterCache.delete(key);
   }
   const evaluation = evaluatorResultToEvaluation(task, raw);
 
@@ -306,15 +289,15 @@ async function diagnose(
   iteration: number,
   evaluation: EvaluationResult,
 ): Promise<Diagnosis> {
-  const raw = evaluatorResultByIter.get(iteration);
+  const cached = iterCache.get(iteration);
+  const raw = cached?.evaluator;
   const dev = asDevPayload(task.direction_payload);
-  const aiLearnings = executorAiLearningsByIter.get(iteration);
+  const aiLearnings = cached?.aiLearnings;
   return diagnoseDevelopmentFailure(
     evaluation,
     raw,
     dev.task_type,
-    task.workspace_path,
-    aiLearnings,
+    { workspacePath: task.workspace_path, aiLearnings },
   );
 }
 
@@ -360,7 +343,7 @@ export const developmentAdapter: DirectionAdapter = {
   direction: "development",
   escalate_categories: ESCALATE_CATEGORIES,
   execution_style(): ExecutionStyle {
-    return "structured";
+    return EXECUTION_STYLE_STRUCTURED;
   },
   plan,
   execute,
@@ -371,6 +354,5 @@ export const developmentAdapter: DirectionAdapter = {
 
 /** 仅供测试:清空跨轮缓存 */
 export function _resetAdapterState(): void {
-  evaluatorResultByIter.clear();
-  executorAiLearningsByIter.clear();
+  iterCache.clear();
 }

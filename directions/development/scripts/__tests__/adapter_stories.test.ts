@@ -10,7 +10,6 @@ function updateStoryStatus(task: LoopTask, passed: boolean): void {
   const current = currentPendingStory(task);
   if (!current) return;
   current.status = passed ? "passed" : "failed";
-  current.passes = passed;
 }
 
 function allStoriesPassed(task: LoopTask): boolean {
@@ -21,8 +20,8 @@ function allStoriesPassed(task: LoopTask): boolean {
 describe("story scheduling helpers", () => {
   it("finds first pending story", () => {
     const stories: Story[] = [
-      { id: "s1", title: "a", status: "pending", passes: false },
-      { id: "s2", title: "b", status: "pending", passes: false },
+      { id: "s1", title: "a", status: "pending" },
+      { id: "s2", title: "b", status: "pending" },
     ];
     const task = { stories } as LoopTask;
     expect(currentPendingStory(task)?.id).toBe("s1");
@@ -30,28 +29,26 @@ describe("story scheduling helpers", () => {
 
   it("updates pending story to passed", () => {
     const stories: Story[] = [
-      { id: "s1", title: "a", status: "pending", passes: false },
+      { id: "s1", title: "a", status: "pending" },
     ];
     const task = { stories } as LoopTask;
     updateStoryStatus(task, true);
     expect(stories[0].status).toBe("passed");
-    expect(stories[0].passes).toBe(true);
   });
 
   it("updates pending story to failed", () => {
     const stories: Story[] = [
-      { id: "s1", title: "a", status: "pending", passes: false },
+      { id: "s1", title: "a", status: "pending" },
     ];
     const task = { stories } as LoopTask;
     updateStoryStatus(task, false);
     expect(stories[0].status).toBe("failed");
-    expect(stories[0].passes).toBe(false);
   });
 
   it("returns true for allStoriesPassed when all passed", () => {
     const stories: Story[] = [
-      { id: "s1", title: "a", status: "passed", passes: true },
-      { id: "s2", title: "b", status: "passed", passes: true },
+      { id: "s1", title: "a", status: "passed" },
+      { id: "s2", title: "b", status: "passed" },
     ];
     const task = { stories } as LoopTask;
     expect(allStoriesPassed(task)).toBe(true);
@@ -59,8 +56,8 @@ describe("story scheduling helpers", () => {
 
   it("returns false for allStoriesPassed when some pending", () => {
     const stories: Story[] = [
-      { id: "s1", title: "a", status: "passed", passes: true },
-      { id: "s2", title: "b", status: "pending", passes: false },
+      { id: "s1", title: "a", status: "passed" },
+      { id: "s2", title: "b", status: "pending" },
     ];
     const task = { stories } as LoopTask;
     expect(allStoriesPassed(task)).toBe(false);

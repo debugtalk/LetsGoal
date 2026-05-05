@@ -27,6 +27,7 @@ import type {
   LoopTask,
   ExecutionStyle,
 } from "../../../core/scripts/types.js";
+import { EXECUTION_STYLE_AI_AUTONOMOUS, EXECUTION_STYLE_STRUCTURED } from "../../../core/scripts/types.js";
 import type {
   EvaluatorResult,
   EvaluatorRunResult,
@@ -85,6 +86,53 @@ function categoryRepairHint(category: DiagnosisCategory): string | null {
   return CATEGORY_REPAIR_HINTS[category] ?? null;
 }
 
+const TASK_TYPE_PROMPTS: Record<string, { structured: string; autonomous: string }> = {
+  bugfix: {
+    structured:
+      "# Bugfix 策略\n" +
+      "你正在修复 bug。遵循以下步骤：\n" +
+      "1. 根据 Bug 复现步骤确认 bug 存在\n" +
+      "2. 定位根本原因（不要只修表面症状）\n" +
+      "3. 编写最小化修复（不要重写整段逻辑）\n" +
+      "4. 确保修复不会破坏现有测试",
+    autonomous: "# 任务类型: bugfix\n你正在修复 bug。请自行分析 bug 根因并决定最佳修复方案。",
+  },
+  refactor: {
+    structured:
+      "# Refactor 策略\n" +
+      "你正在重构代码。关键约束：\n" +
+      "1. 所有现有测试必须继续通过——重构不改变行为\n" +
+      "2. 不改变公共 API（函数签名、导出名称、返回类型）\n" +
+      "3. 不添加新功能——只重组现有代码\n" +
+      "4. 每次提交只做一项重构，便于回滚",
+    autonomous: "# 任务类型: refactor\n你正在重构代码。请自行决定重构范围与方式，确保不破坏现有行为。",
+  },
+  skill_creation: {
+    structured:
+      "# Skill 创建指导\n" +
+      "你正在创建一个 Claude Code Skill。Skill 必须遵循 SKILL.md 格式，包含：\n" +
+      "1. YAML frontmatter（name + description）\n" +
+      "2. 适用场景和跳过条件\n" +
+      "3. 输入/输出契约\n" +
+      "4. 执行步骤\n" +
+      "Skill 必须能被 Claude Code 正确加载和使用。",
+    autonomous: "# 任务类型: skill_creation\n你正在创建一个 Claude Code Skill。请自行决定 Skill 的最佳结构与内容。",
+  },
+  skill_optimize: {
+    structured:
+      "# Skill 优化指导\n" +
+      "你正在优化一个现有的 Claude Code Skill。目标：提高 Skill 的评测通过率。\n" +
+      "不要修改评测用例（它们是冻结的）。只修改 Skill 定义文件。",
+    autonomous: "# 任务类型: skill_optimize\n你正在优化一个现有的 Claude Code Skill。请自行决定优化方向与策略。",
+  },
+};
+
+function taskTypeStrategy(taskType: string | undefined, style: ExecutionStyle): string | undefined {
+  const entry = TASK_TYPE_PROMPTS[taskType ?? ""];
+  if (!entry) return undefined;
+  return style === EXECUTION_STYLE_AI_AUTONOMOUS ? entry.autonomous : entry.structured;
+}
+
 function bullet(items: string[] | undefined): string {
   if (!items || items.length === 0) return "(无)";
   return items.map((it) => `- ${it}`).join("\n");
@@ -124,14 +172,14 @@ export function buildPrompt(input: ExecutorInput): string {
   blocks.push(PROMPT_HEADER);
 
   // M2.5: 加载过往经验
-  const executionStyle = input.execution_style ?? "structured";
+  const executionStyle = input.execution_style ?? EXECUTION_STYLE_STRUCTURED;
   const learnings = readLearnings(task.workspace_path);
   if (learnings.length > 0) {
     blocks.push(`# 过往经验(learnings)\n以下是从之前轮次沉淀下来的经验，供你参考：\n\n${learnings}`);
   }
 
   // 执行风格上下文（M2.5）
-  if (executionStyle === "ai_autonomous") {
+  if (executionStyle === EXECUTION_STYLE_AI_AUTONOMOUS) {
     blocks.push("# 执行风格：AI 自治\n你处于 AI 自治模式。请自行判断最佳修复方案，不需要严格遵循预设策略。评估结果仅作为参考信息。");
   }
 
@@ -152,63 +200,8 @@ export function buildPrompt(input: ExecutorInput): string {
     blocks.push(`# Bug 复现\n${dev.bug_repro}`);
   }
 
-  if (dev.task_type === "bugfix") {
-    if (executionStyle === "ai_autonomous") {
-      blocks.push("# 任务类型: bugfix\n你正在修复 bug。请自行分析 bug 根因并决定最佳修复方案。");
-    } else {
-      blocks.push(
-        "# Bugfix 策略\n" +
-        "你正在修复 bug。遵循以下步骤：\n" +
-        "1. 根据 Bug 复现步骤确认 bug 存在\n" +
-        "2. 定位根本原因（不要只修表面症状）\n" +
-        "3. 编写最小化修复（不要重写整段逻辑）\n" +
-        "4. 确保修复不会破坏现有测试",
-      );
-    }
-  }
-
-  if (dev.task_type === "refactor") {
-    if (executionStyle === "ai_autonomous") {
-      blocks.push("# 任务类型: refactor\n你正在重构代码。请自行决定重构范围与方式，确保不破坏现有行为。");
-    } else {
-      blocks.push(
-        "# Refactor 策略\n" +
-        "你正在重构代码。关键约束：\n" +
-        "1. 所有现有测试必须继续通过——重构不改变行为\n" +
-        "2. 不改变公共 API（函数签名、导出名称、返回类型）\n" +
-        "3. 不添加新功能——只重组现有代码\n" +
-        "4. 每次提交只做一项重构，便于回滚",
-      );
-    }
-  }
-
-  if (dev.task_type === "skill_creation") {
-    if (executionStyle === "ai_autonomous") {
-      blocks.push("# 任务类型: skill_creation\n你正在创建一个 Claude Code Skill。请自行决定 Skill 的最佳结构与内容。");
-    } else {
-      blocks.push(
-        "# Skill 创建指导\n" +
-        "你正在创建一个 Claude Code Skill。Skill 必须遵循 SKILL.md 格式，包含：\n" +
-        "1. YAML frontmatter（name + description）\n" +
-        "2. 适用场景和跳过条件\n" +
-        "3. 输入/输出契约\n" +
-        "4. 执行步骤\n" +
-        "Skill 必须能被 Claude Code 正确加载和使用。",
-      );
-    }
-  }
-
-  if (dev.task_type === "skill_optimize") {
-    if (executionStyle === "ai_autonomous") {
-      blocks.push("# 任务类型: skill_optimize\n你正在优化一个现有的 Claude Code Skill。请自行决定优化方向与策略。");
-    } else {
-      blocks.push(
-        "# Skill 优化指导\n" +
-        "你正在优化一个现有的 Claude Code Skill。目标：提高 Skill 的评测通过率。\n" +
-        "不要修改评测用例（它们是冻结的）。只修改 Skill 定义文件。",
-      );
-    }
-  }
+  const strategy = taskTypeStrategy(dev.task_type, executionStyle);
+  if (strategy) blocks.push(strategy);
 
   blocks.push(`# 约束\n${bullet(task.constraints)}`);
   blocks.push(`# 禁止改动(任何情况下不得修改)\n${bullet(task.forbidden_changes)}`);
@@ -241,7 +234,7 @@ export function buildPrompt(input: ExecutorInput): string {
       if (input.prevDiagnosis.category && isDiagnosisCategory(input.prevDiagnosis.category)) {
         lines.push(`归因分类: ${input.prevDiagnosis.category}`);
         // M2.5: ai_autonomous 模式下不注入修复建议,让 AI 自行判断
-        if (executionStyle !== "ai_autonomous") {
+        if (executionStyle !== EXECUTION_STYLE_AI_AUTONOMOUS) {
           const hint = categoryRepairHint(input.prevDiagnosis.category);
           if (hint) lines.push(`修复建议: ${hint}`);
         }
@@ -280,7 +273,7 @@ export function buildPrompt(input: ExecutorInput): string {
   }
 
   // 任务要点
-  if (executionStyle === "ai_autonomous") {
+  if (executionStyle === EXECUTION_STYLE_AI_AUTONOMOUS) {
     blocks.push(
       [
         "# 你这一轮要做的事",

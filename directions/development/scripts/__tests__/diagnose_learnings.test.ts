@@ -42,7 +42,7 @@ describe("diagnoseDevelopmentFailure learnings", () => {
     const evaluation = makeEvaluation(["test"]);
     const evaluatorResult = makeEvaluatorResult({ failed: ["test"] });
 
-    diagnoseDevelopmentFailure(evaluation, evaluatorResult, "feature", tmpDir);
+    diagnoseDevelopmentFailure(evaluation, evaluatorResult, "feature", { workspacePath: tmpDir });
 
     const path = resolve(tmpDir, ".letsgoal", "learnings.md");
     expect(existsSync(path)).toBe(true);
@@ -59,8 +59,7 @@ describe("diagnoseDevelopmentFailure learnings", () => {
       evaluation,
       evaluatorResult,
       "feature",
-      tmpDir,
-      "I should check edge cases first.",
+      { workspacePath: tmpDir, aiLearnings: "I should check edge cases first." },
     );
 
     const path = resolve(tmpDir, ".letsgoal", "learnings.md");
@@ -83,7 +82,7 @@ describe("diagnoseDevelopmentFailure learnings", () => {
     const evaluation = makeEvaluation(["lint"]);
     const evaluatorResult = makeEvaluatorResult({ failed: ["lint"] });
 
-    diagnoseDevelopmentFailure(evaluation, evaluatorResult, "feature", tmpDir);
+    diagnoseDevelopmentFailure(evaluation, evaluatorResult, "feature", { workspacePath: tmpDir });
 
     const path = resolve(tmpDir, ".letsgoal", "learnings.md");
     // category 可能不是 unknown 因为 lint → lint_violation

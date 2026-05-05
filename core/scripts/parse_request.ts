@@ -153,6 +153,30 @@ function isPlaceholderInline(text: string): boolean {
   return /^<[^<>]+>$/.test(text.trim());
 }
 
+function parseStories(raw: string): Story[] | undefined {
+  const body = extractBody(raw);
+  if (body.length === 0 || isPlaceholder(body)) return undefined;
+  try {
+    const parsed = parseYaml(body) as unknown;
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed
+      .filter(
+        (s: unknown) =>
+          s !== null &&
+          typeof s === "object" &&
+          typeof (s as Record<string, unknown>).id === "string" &&
+          typeof (s as Record<string, unknown>).title === "string",
+      )
+      .map((s: unknown) => ({
+        id: (s as Record<string, unknown>).id as string,
+        title: (s as Record<string, unknown>).title as string,
+        status: "pending" as const,
+      }));
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * 从 `## 配置` 章节内容里提取 YAML 代码块文本。
  * 仅识别 ```yaml ... ``` 围栏。
@@ -292,34 +316,8 @@ export function parseMarkdownTask(
   };
 
   // ---------- 可选:Story 级追踪 ----------
-  let stories: Story[] | undefined;
   const storiesRaw = sectionMap.get("Stories");
-  if (storiesRaw !== undefined) {
-    const storiesBody = extractBody(storiesRaw);
-    if (storiesBody.length > 0 && !isPlaceholder(storiesBody)) {
-      try {
-        const parsed = parseYaml(storiesBody) as unknown;
-        if (Array.isArray(parsed)) {
-          stories = parsed
-            .filter(
-              (s: unknown) =>
-                s !== null &&
-                typeof s === "object" &&
-                typeof (s as Record<string, unknown>).id === "string" &&
-                typeof (s as Record<string, unknown>).title === "string",
-            )
-            .map((s: unknown) => ({
-              id: (s as Record<string, unknown>).id as string,
-              title: (s as Record<string, unknown>).title as string,
-              status: "pending" as const,
-              passes: false,
-            }));
-        }
-      } catch {
-        // Stories 格式错误时静默忽略
-      }
-    }
-  }
+  const stories = storiesRaw !== undefined ? parseStories(storiesRaw) : undefined;
 
   // ---------- 组装方向特异 payload ----------
   const devPayload: DevTaskRequest = {

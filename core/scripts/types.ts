@@ -32,6 +32,9 @@ export type AutonomyMode = "strict" | "standard" | "autonomous";
 // 执行风格(M2.5 启用,默认为 structured)
 export type ExecutionStyle = "structured" | "ai_autonomous";
 
+export const EXECUTION_STYLE_STRUCTURED: ExecutionStyle = "structured";
+export const EXECUTION_STYLE_AI_AUTONOMOUS: ExecutionStyle = "ai_autonomous";
+
 // ============================================================================
 // Story 级追踪(M2.5)
 // ============================================================================
@@ -40,7 +43,6 @@ export interface Story {
   id: string;
   title: string;
   status: "pending" | "passed" | "failed";
-  passes: boolean;
 }
 
 // ============================================================================

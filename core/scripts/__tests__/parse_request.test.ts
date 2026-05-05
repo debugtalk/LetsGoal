@@ -323,13 +323,11 @@ task_type: feature
       id: "story-1",
       title: "implement div3",
       status: "pending",
-      passes: false,
     });
     expect(task.stories![1]).toMatchObject({
       id: "story-2",
       title: "implement div5",
       status: "pending",
-      passes: false,
     });
   });
 });

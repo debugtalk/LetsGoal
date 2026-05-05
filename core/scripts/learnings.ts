@@ -57,3 +57,17 @@ export function appendLearning(workspacePath: string, content: string): void {
 
   appendFileSync(p, block, "utf-8");
 }
+
+/**
+ * 追加一条归因提炼的学习记录。
+ */
+export function appendCategoryLearning(workspacePath: string, category: string, hint: string): void {
+  appendLearning(workspacePath, `**分类**: ${category}\n**建议**: ${hint}`);
+}
+
+/**
+ * 追加一条 AI 自省的学习记录。
+ */
+export function appendAiLearning(workspacePath: string, aiLearnings: string): void {
+  appendLearning(workspacePath, `**AI 自省**: ${aiLearnings.trim()}`);
+}
