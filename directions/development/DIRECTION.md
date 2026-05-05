@@ -162,6 +162,21 @@ export const developmentAdapter: DirectionAdapter = {
 - 渐进式自主（只有 standard 模式）
 - 飞书通知 / 飞书表格
 
+## M2.5 范围
+
+**做**:
+- 经验沉淀（learnings.md）：AI 自省 + 归因提炼双来源写入
+- 执行风格切换（structured / ai_autonomous）：executor prompt 按风格分支
+- Story 级追踪：`LoopTask.stories` 逐 story 执行与状态更新
+- 解析层支持 `## Stories` 章节 + `loop_config.execution_style`
+- F6 fixture（Story 追踪）、F8 fixture（AI 自治 + learnings）
+
+**不做**:
+- 数据采集 / 模型调优方向的 story 调度（M3）
+- learnings.md 大小限制或自动摘要
+- story 级独立评估（当前仍使用任务级评估）
+- 飞书通知 / 飞书表格
+
 ## M0 范围
 
 **做**:

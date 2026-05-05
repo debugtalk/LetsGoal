@@ -1,0 +1,8 @@
+{
+  "name": "fizzbuzz-story-fixture",
+  "version": "1.0.0",
+  "description": "F6 fixture: story-level tracking with incremental fizzbuzz",
+  "scripts": {
+    "test": "node test/stories.test.js"
+  }
+}

@@ -32,6 +32,8 @@ import {
   type LoopConfig,
   type SuccessCriteria,
   type AutonomyMode,
+  type ExecutionStyle,
+  type Story,
 } from "./types.js";
 
 import type {
@@ -178,6 +180,7 @@ interface ConfigYaml {
     max_iterations?: number;
     min_score?: number;
     autonomy_mode?: AutonomyMode;
+    execution_style?: ExecutionStyle;
   };
   commands?: {
     lint?: string;
@@ -186,6 +189,7 @@ interface ConfigYaml {
   };
   coverage_target?: number;
   eval_suite?: EvalSuiteConfig;
+  stories?: { id: string; title: string }[];
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {
@@ -284,7 +288,38 @@ export function parseMarkdownTask(
     min_score: config.loop_config?.min_score ?? DEFAULT_LOOP_CONFIG.min_score,
     autonomy_mode:
       config.loop_config?.autonomy_mode ?? DEFAULT_LOOP_CONFIG.autonomy_mode,
+    execution_style: config.loop_config?.execution_style,
   };
+
+  // ---------- 可选:Story 级追踪 ----------
+  let stories: Story[] | undefined;
+  const storiesRaw = sectionMap.get("Stories");
+  if (storiesRaw !== undefined) {
+    const storiesBody = extractBody(storiesRaw);
+    if (storiesBody.length > 0 && !isPlaceholder(storiesBody)) {
+      try {
+        const parsed = parseYaml(storiesBody) as unknown;
+        if (Array.isArray(parsed)) {
+          stories = parsed
+            .filter(
+              (s: unknown) =>
+                s !== null &&
+                typeof s === "object" &&
+                typeof (s as Record<string, unknown>).id === "string" &&
+                typeof (s as Record<string, unknown>).title === "string",
+            )
+            .map((s: unknown) => ({
+              id: (s as Record<string, unknown>).id as string,
+              title: (s as Record<string, unknown>).title as string,
+              status: "pending" as const,
+              passes: false,
+            }));
+        }
+      } catch {
+        // Stories 格式错误时静默忽略
+      }
+    }
+  }
 
   // ---------- 组装方向特异 payload ----------
   const devPayload: DevTaskRequest = {
@@ -337,6 +372,7 @@ export function parseMarkdownTask(
     best_score: 0,
     best_iteration: 0,
     direction_payload: devPayload as unknown as Record<string, unknown>,
+    stories: stories && stories.length > 0 ? stories : undefined,
     created_at: now,
     updated_at: now,
   };

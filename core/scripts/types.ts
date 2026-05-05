@@ -29,6 +29,20 @@ export type NextAction = "retry" | "escalate" | "done";
 // 渐进式自主模式(M2 启用,M0/M1 默认 standard)
 export type AutonomyMode = "strict" | "standard" | "autonomous";
 
+// 执行风格(M2.5 启用,默认为 structured)
+export type ExecutionStyle = "structured" | "ai_autonomous";
+
+// ============================================================================
+// Story 级追踪(M2.5)
+// ============================================================================
+
+export interface Story {
+  id: string;
+  title: string;
+  status: "pending" | "passed" | "failed";
+  passes: boolean;
+}
+
 // ============================================================================
 // 评估
 // ============================================================================
@@ -133,6 +147,7 @@ export interface LoopConfig {
   max_iterations: number; // 默认 10
   min_score: number; // 默认 0.92
   autonomy_mode?: AutonomyMode; // M2 启用,M0/M1 默认 standard
+  execution_style?: ExecutionStyle; // M2.5 启用,覆盖 adapter 默认值
 }
 
 /**
@@ -156,6 +171,7 @@ export interface LoopTask {
   best_score: number; // 历史最佳分数
   best_iteration: number; // 取得最佳分数的轮次
   direction_payload: Record<string, unknown>; // 方向特异字段
+  stories?: Story[]; // M2.5: Story 级追踪(可选)
   created_at: string;
   updated_at: string;
 }
@@ -175,6 +191,9 @@ export interface DirectionAdapter {
 
   /** 需要升级人工的归因分类集合，core 据此决定是否暂停循环 */
   escalate_categories: ReadonlySet<string>;
+
+  /** M2.5: 执行风格。默认 structured;可被 LoopTask.config.execution_style 覆盖 */
+  execution_style?(): ExecutionStyle;
 
   /** Plan 阶段:解析需求 + 校验 + 准备 workspace */
   plan(task: LoopTask): Promise<LoopTask>;

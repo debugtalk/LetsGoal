@@ -13,6 +13,8 @@ import type {
   HardGateResult,
   IterationResult,
   LoopTask,
+  Story,
+  ExecutionStyle,
 } from "../../../core/scripts/types.js";
 
 import {
@@ -39,6 +41,12 @@ import { resolve } from "node:path";
  * 在同一轮的 diagnose 阶段被读出以获取 stderr_tail 等细节。
  */
 const evaluatorResultByIter = new Map<number, EvaluatorResult>();
+
+/**
+ * M2.5: executor 阶段产出的 ai_learnings 缓存,
+ * 在同一轮的 diagnose 阶段被读出以写入 learnings.md。
+ */
+const executorAiLearningsByIter = new Map<number, string | undefined>();
 
 // ============================================================================
 // EvaluatorResult → EvaluationResult 转换
@@ -151,6 +159,34 @@ function evaluatorResultToEvaluation(
 }
 
 // ============================================================================
+// M2.5 辅助函数
+// ============================================================================
+
+/**
+ * 解析执行风格: task.config.execution_style > adapter.execution_style() > "structured"
+ */
+function resolveExecutionStyle(task: LoopTask, adapter: DirectionAdapter): ExecutionStyle {
+  return task.config.execution_style ?? adapter.execution_style?.() ?? "structured";
+}
+
+/**
+ * 找到当前 pending 的 story。
+ */
+function currentPendingStory(task: LoopTask): Story | undefined {
+  return task.stories?.find((s) => s.status === "pending");
+}
+
+/**
+ * 更新当前 pending story 的状态。
+ */
+function updateStoryStatus(task: LoopTask, passed: boolean): void {
+  const current = currentPendingStory(task);
+  if (!current) return;
+  current.status = passed ? "passed" : "failed";
+  current.passes = passed;
+}
+
+// ============================================================================
 // adapter 五阶段实现
 // ============================================================================
 
@@ -197,12 +233,20 @@ async function execute(
   iteration: number,
   context: ExecuteContext,
 ): Promise<{ changed_files: string[]; commit_sha?: string }> {
+  const style = resolveExecutionStyle(task, developmentAdapter);
   const out = await executeIteration({
     task,
     iteration,
     prevEvaluation: extractRawEvaluatorResult(context, iteration),
     prevDiagnosis: context.prev_diagnosis,
+    execution_style: style,
   });
+  // M2.5: 缓存 AI 自省供 diagnose 阶段使用
+  executorAiLearningsByIter.set(iteration, out.ai_learnings);
+  // 只保留最近两轮
+  for (const key of [...executorAiLearningsByIter.keys()]) {
+    if (key < iteration - 1) executorAiLearningsByIter.delete(key);
+  }
   return {
     changed_files: out.changed_files,
     commit_sha: out.commit_sha,
@@ -249,7 +293,12 @@ async function evaluate(
   for (const key of [...evaluatorResultByIter.keys()]) {
     if (key < iteration - 1) evaluatorResultByIter.delete(key);
   }
-  return evaluatorResultToEvaluation(task, raw);
+  const evaluation = evaluatorResultToEvaluation(task, raw);
+
+  // M2.5: 更新当前 story 状态
+  updateStoryStatus(task, evaluation.hard_gates_all_passed);
+
+  return evaluation;
 }
 
 async function diagnose(
@@ -259,7 +308,14 @@ async function diagnose(
 ): Promise<Diagnosis> {
   const raw = evaluatorResultByIter.get(iteration);
   const dev = asDevPayload(task.direction_payload);
-  return diagnoseDevelopmentFailure(evaluation, raw, dev.task_type);
+  const aiLearnings = executorAiLearningsByIter.get(iteration);
+  return diagnoseDevelopmentFailure(
+    evaluation,
+    raw,
+    dev.task_type,
+    task.workspace_path,
+    aiLearnings,
+  );
 }
 
 async function report(task: LoopTask, iter: IterationResult): Promise<string> {
@@ -280,12 +336,20 @@ async function report(task: LoopTask, iter: IterationResult): Promise<string> {
       ? `\n  └─ ${iter.diagnosis.reason}`
       : "";
 
-  // autonomous 模式仅输出简洁摘要
-  if (verbosity === "minimal") {
-    return `iter ${iter.iteration}: ${passOrFail} ${gates}${sha}`;
+  // M2.5: Story 进度
+  let storyTag = "";
+  if (task.stories && task.stories.length > 0) {
+    const passed = task.stories.filter((s) => s.status === "passed").length;
+    const total = task.stories.length;
+    storyTag = ` [stories ${passed}/${total}]`;
   }
 
-  return `iter ${iter.iteration}: ${passOrFail}${categoryTag}${escalateTag} ${gates}${sha}${reason}`;
+  // autonomous 模式仅输出简洁摘要
+  if (verbosity === "minimal") {
+    return `iter ${iter.iteration}: ${passOrFail}${storyTag} ${gates}${sha}`;
+  }
+
+  return `iter ${iter.iteration}: ${passOrFail}${categoryTag}${escalateTag}${storyTag} ${gates}${sha}${reason}`;
 }
 
 // ============================================================================
@@ -295,6 +359,9 @@ async function report(task: LoopTask, iter: IterationResult): Promise<string> {
 export const developmentAdapter: DirectionAdapter = {
   direction: "development",
   escalate_categories: ESCALATE_CATEGORIES,
+  execution_style(): ExecutionStyle {
+    return "structured";
+  },
   plan,
   execute,
   evaluate,
@@ -305,4 +372,5 @@ export const developmentAdapter: DirectionAdapter = {
 /** 仅供测试:清空跨轮缓存 */
 export function _resetAdapterState(): void {
   evaluatorResultByIter.clear();
+  executorAiLearningsByIter.clear();
 }

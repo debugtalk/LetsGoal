@@ -9,7 +9,7 @@
 | M0 | 单循环引擎 + 开发调试方向最小闭环 + 3 个白盒 fixture | F1/F2/F3 在 ≤3 轮通过 | ✅ 已完成 |
 | M1 | Skill 创建/优化场景 + 评测集冻结 + 归因分类 | 用 LetsGoal 复刻一个 Skill | ✅ 已完成 |
 | M2 | Bug 修复 + 重构场景 + 渐进式自主 + 飞书看板（可选） | 修一个真实 issue，产出 PR | ✅ 已完成 |
-| M2.5 | Ralph 借鉴：经验沉淀 + Story 级追踪 + 执行风格 | 开发方向跑通 learnings + story 分解 + AI 自治模式 | ⬜ 未开始 |
+| M2.5 | Ralph 借鉴：经验沉淀 + Story 级追踪 + 执行风格 | 开发方向跑通 learnings + story 分解 + AI 自治模式 | ✅ 已完成 |
 | M3 | CI/CD 集成 + 多任务并行 + 飞书评论反馈消费 | 团队场景可用 | ⬜ 未开始 |
 
 ## M0 — 开发调试最小闭环
@@ -49,10 +49,10 @@
 
 | 事项 | 状态 |
 |------|------|
-| 经验沉淀（learnings.md） | ⬜ 未开始 |
-| Story 级追踪 | ⬜ 未开始 |
-| 执行风格（structured / ai_autonomous） | ⬜ 未开始 |
-| M2.5 验收：开发方向跑通 learnings + story 分解 + AI 自治模式 | ⬜ 未开始 |
+| 经验沉淀（learnings.md） | ✅ 已完成 |
+| Story 级追踪 | ✅ 已完成 |
+| 执行风格（structured / ai_autonomous） | ✅ 已完成 |
+| M2.5 验收：开发方向跑通 learnings + story 分解 + AI 自治模式 | ✅ 已完成 |
 
 ## M3 — 团队规模
 

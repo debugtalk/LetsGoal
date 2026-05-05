@@ -9,7 +9,8 @@
 import type { Diagnosis, EvaluationResult } from "../../../core/scripts/types.js";
 import { DEV_GATE_NAMES, type DevTaskType } from "./types.js";
 import type { EvaluatorResult, EvaluatorRunResult } from "./types.js";
-import { classifyFailure } from "./classifier.js";
+import { classifyFailure, isDiagnosisCategory, CATEGORY_REPAIR_HINTS } from "./classifier.js";
+import { appendLearning } from "../../../core/scripts/learnings.js";
 
 /** stderr_tail 抽取的最大行数(作为 evidence) */
 const EVIDENCE_LINES_PER_GATE = 8;
@@ -51,15 +52,42 @@ function gateEvidence(gate: string, r?: EvaluatorRunResult): string[] {
 }
 
 /**
+ * 将归因结果写入 learnings.md(公式化建议)。
+ */
+function writeCategoryLearning(workspacePath: string | undefined, category: string | undefined): void {
+  if (!workspacePath || !category || category === "unknown") return;
+  if (!isDiagnosisCategory(category)) return;
+  const hint = CATEGORY_REPAIR_HINTS[category];
+  if (!hint) return;
+
+  appendLearning(
+    workspacePath,
+    `**分类**: ${category}\n**建议**: ${hint}`,
+  );
+}
+
+/**
+ * 将 AI 自省写入 learnings.md。
+ */
+function writeAiLearning(workspacePath: string | undefined, aiLearnings: string | undefined): void {
+  if (!workspacePath || !aiLearnings || aiLearnings.trim().length === 0) return;
+  appendLearning(workspacePath, `**AI 自省**: ${aiLearnings.trim()}`);
+}
+
+/**
  * 从 EvaluationResult(共享类型)+ EvaluatorResult(方向特异)拼出 Diagnosis。
  *
  * 优先用 EvaluatorResult 的 stderr_tail 给出有用的细节;EvaluatorResult 缺失时
  * 退回 evaluation.hard_gates[*].detail。
+ *
+ * M2.5 新增: workspace_path / ai_learnings 用于写入经验沉淀。
  */
 export function diagnoseDevelopmentFailure(
   evaluation: EvaluationResult,
   evaluatorResult?: EvaluatorResult,
   taskType?: DevTaskType,
+  workspacePath?: string,
+  aiLearnings?: string,
 ): Diagnosis {
   // 全过 → 不应进入这里,但保留兜底
   const failedGates = evaluation.hard_gates.filter((g) => !g.passed);
@@ -100,6 +128,10 @@ export function diagnoseDevelopmentFailure(
   }
 
   const category = classifyFailure(evaluation, evaluatorResult, taskType);
+
+  // M2.5: 经验沉淀写入
+  writeCategoryLearning(workspacePath, category === "unknown" ? undefined : category);
+  writeAiLearning(workspacePath, aiLearnings);
 
   return {
     category: category === "unknown" ? undefined : category,

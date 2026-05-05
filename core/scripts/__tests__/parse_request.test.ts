@@ -271,4 +271,65 @@ commands:
 
     expect(task.task_id).toMatch(/^request-\d{14}-[0-9a-f]{6}$/);
   });
+
+  it("should parse execution_style from loop_config", () => {
+    const md = `
+## 目标
+do something
+
+## 项目根目录
+/tmp/project
+
+## 配置
+\`\`\`yaml
+loop_config:
+  execution_style: ai_autonomous
+\`\`\`
+`;
+    const task = parseMarkdownTask(md, {
+      requestPath: "/tmp/request.md",
+      workspacePath: "/tmp/workspace",
+    });
+
+    expect(task.config.execution_style).toBe("ai_autonomous");
+  });
+
+  it("should parse stories from ## Stories section", () => {
+    const md = `
+## 目标
+do something
+
+## 项目根目录
+/tmp/project
+
+## Stories
+- id: story-1
+  title: implement div3
+- id: story-2
+  title: implement div5
+
+## 配置
+\`\`\`yaml
+task_type: feature
+\`\`\`
+`;
+    const task = parseMarkdownTask(md, {
+      requestPath: "/tmp/request.md",
+      workspacePath: "/tmp/workspace",
+    });
+
+    expect(task.stories).toHaveLength(2);
+    expect(task.stories![0]).toMatchObject({
+      id: "story-1",
+      title: "implement div3",
+      status: "pending",
+      passes: false,
+    });
+    expect(task.stories![1]).toMatchObject({
+      id: "story-2",
+      title: "implement div5",
+      status: "pending",
+      passes: false,
+    });
+  });
 });

@@ -25,6 +25,7 @@ import type {
   AutonomyMode,
   Diagnosis,
   LoopTask,
+  ExecutionStyle,
 } from "../../../core/scripts/types.js";
 import type {
   EvaluatorResult,
@@ -34,6 +35,7 @@ import { asDevPayload } from "./types.js";
 import { CATEGORY_REPAIR_HINTS, isDiagnosisCategory } from "./classifier.js";
 import type { DiagnosisCategory } from "./classifier.js";
 import { claudePermissionMode } from "../../../core/scripts/autonomy.js";
+import { readLearnings } from "../../../core/scripts/learnings.js";
 
 // ============================================================================
 // 配置
@@ -57,6 +59,7 @@ export interface ExecutorInput {
   iteration: number; // 当前轮次,从 1 开始
   prevEvaluation?: EvaluatorResult;
   prevDiagnosis?: Diagnosis;
+  execution_style?: ExecutionStyle; // M2.5: 执行风格覆盖
 }
 
 export interface ExecutorOutput {
@@ -68,6 +71,8 @@ export interface ExecutorOutput {
   duration_ms: number;
   /** Claude 自己输出的 JSON 摘要(若 prompt 末尾要求格式正确解析) */
   claude_summary?: { changed_files: string[]; commit_sha: string };
+  /** M2.5: Claude 自省产出的 learnings */
+  ai_learnings?: string;
 }
 
 // ============================================================================
@@ -118,6 +123,18 @@ export function buildPrompt(input: ExecutorInput): string {
   const blocks: string[] = [];
   blocks.push(PROMPT_HEADER);
 
+  // M2.5: 加载过往经验
+  const executionStyle = input.execution_style ?? "structured";
+  const learnings = readLearnings(task.workspace_path);
+  if (learnings.length > 0) {
+    blocks.push(`# 过往经验(learnings)\n以下是从之前轮次沉淀下来的经验，供你参考：\n\n${learnings}`);
+  }
+
+  // 执行风格上下文（M2.5）
+  if (executionStyle === "ai_autonomous") {
+    blocks.push("# 执行风格：AI 自治\n你处于 AI 自治模式。请自行判断最佳修复方案，不需要严格遵循预设策略。评估结果仅作为参考信息。");
+  }
+
   // 自主模式上下文（M2）
   const autonomyMode = task.config.autonomy_mode ?? "standard";
   if (autonomyMode === "strict") {
@@ -136,45 +153,61 @@ export function buildPrompt(input: ExecutorInput): string {
   }
 
   if (dev.task_type === "bugfix") {
-    blocks.push(
-      "# Bugfix 策略\n" +
-      "你正在修复 bug。遵循以下步骤：\n" +
-      "1. 根据 Bug 复现步骤确认 bug 存在\n" +
-      "2. 定位根本原因（不要只修表面症状）\n" +
-      "3. 编写最小化修复（不要重写整段逻辑）\n" +
-      "4. 确保修复不会破坏现有测试",
-    );
+    if (executionStyle === "ai_autonomous") {
+      blocks.push("# 任务类型: bugfix\n你正在修复 bug。请自行分析 bug 根因并决定最佳修复方案。");
+    } else {
+      blocks.push(
+        "# Bugfix 策略\n" +
+        "你正在修复 bug。遵循以下步骤：\n" +
+        "1. 根据 Bug 复现步骤确认 bug 存在\n" +
+        "2. 定位根本原因（不要只修表面症状）\n" +
+        "3. 编写最小化修复（不要重写整段逻辑）\n" +
+        "4. 确保修复不会破坏现有测试",
+      );
+    }
   }
 
   if (dev.task_type === "refactor") {
-    blocks.push(
-      "# Refactor 策略\n" +
-      "你正在重构代码。关键约束：\n" +
-      "1. 所有现有测试必须继续通过——重构不改变行为\n" +
-      "2. 不改变公共 API（函数签名、导出名称、返回类型）\n" +
-      "3. 不添加新功能——只重组现有代码\n" +
-      "4. 每次提交只做一项重构，便于回滚",
-    );
+    if (executionStyle === "ai_autonomous") {
+      blocks.push("# 任务类型: refactor\n你正在重构代码。请自行决定重构范围与方式，确保不破坏现有行为。");
+    } else {
+      blocks.push(
+        "# Refactor 策略\n" +
+        "你正在重构代码。关键约束：\n" +
+        "1. 所有现有测试必须继续通过——重构不改变行为\n" +
+        "2. 不改变公共 API（函数签名、导出名称、返回类型）\n" +
+        "3. 不添加新功能——只重组现有代码\n" +
+        "4. 每次提交只做一项重构，便于回滚",
+      );
+    }
   }
 
   if (dev.task_type === "skill_creation") {
-    blocks.push(
-      "# Skill 创建指导\n" +
-      "你正在创建一个 Claude Code Skill。Skill 必须遵循 SKILL.md 格式，包含：\n" +
-      "1. YAML frontmatter（name + description）\n" +
-      "2. 适用场景和跳过条件\n" +
-      "3. 输入/输出契约\n" +
-      "4. 执行步骤\n" +
-      "Skill 必须能被 Claude Code 正确加载和使用。",
-    );
+    if (executionStyle === "ai_autonomous") {
+      blocks.push("# 任务类型: skill_creation\n你正在创建一个 Claude Code Skill。请自行决定 Skill 的最佳结构与内容。");
+    } else {
+      blocks.push(
+        "# Skill 创建指导\n" +
+        "你正在创建一个 Claude Code Skill。Skill 必须遵循 SKILL.md 格式，包含：\n" +
+        "1. YAML frontmatter（name + description）\n" +
+        "2. 适用场景和跳过条件\n" +
+        "3. 输入/输出契约\n" +
+        "4. 执行步骤\n" +
+        "Skill 必须能被 Claude Code 正确加载和使用。",
+      );
+    }
   }
 
   if (dev.task_type === "skill_optimize") {
-    blocks.push(
-      "# Skill 优化指导\n" +
-      "你正在优化一个现有的 Claude Code Skill。目标：提高 Skill 的评测通过率。\n" +
-      "不要修改评测用例（它们是冻结的）。只修改 Skill 定义文件。",
-    );
+    if (executionStyle === "ai_autonomous") {
+      blocks.push("# 任务类型: skill_optimize\n你正在优化一个现有的 Claude Code Skill。请自行决定优化方向与策略。");
+    } else {
+      blocks.push(
+        "# Skill 优化指导\n" +
+        "你正在优化一个现有的 Claude Code Skill。目标：提高 Skill 的评测通过率。\n" +
+        "不要修改评测用例（它们是冻结的）。只修改 Skill 定义文件。",
+      );
+    }
   }
 
   blocks.push(`# 约束\n${bullet(task.constraints)}`);
@@ -207,8 +240,11 @@ export function buildPrompt(input: ExecutorInput): string {
       const lines = [`# 上一轮失败归因`, input.prevDiagnosis.reason];
       if (input.prevDiagnosis.category && isDiagnosisCategory(input.prevDiagnosis.category)) {
         lines.push(`归因分类: ${input.prevDiagnosis.category}`);
-        const hint = categoryRepairHint(input.prevDiagnosis.category);
-        if (hint) lines.push(`修复建议: ${hint}`);
+        // M2.5: ai_autonomous 模式下不注入修复建议,让 AI 自行判断
+        if (executionStyle !== "ai_autonomous") {
+          const hint = categoryRepairHint(input.prevDiagnosis.category);
+          if (hint) lines.push(`修复建议: ${hint}`);
+        }
       }
       if (input.prevDiagnosis.evidence && input.prevDiagnosis.evidence.length > 0) {
         lines.push("");
@@ -232,20 +268,48 @@ export function buildPrompt(input: ExecutorInput): string {
     if (cmdLines.length > 1) blocks.push(cmdLines.join("\n"));
   }
 
+  // M2.5: Story 上下文
+  const stories = task.stories;
+  if (stories && stories.length > 0) {
+    const current = stories.find((s) => s.status === "pending");
+    if (current) {
+      blocks.push(
+        `# 当前 Story\n- ID: ${current.id}\n- 标题: ${current.title}\n本轮聚焦实现当前 Story，不要处理其他 Story。`,
+      );
+    }
+  }
+
   // 任务要点
-  blocks.push(
-    [
-      "# 你这一轮要做的事",
-      `1. 在 project_root (\`${dev.project_root}\`) 下做出代码改动,目标是让三件套(lint / typecheck / test)全部通过。`,
-      `2. **不要**修改「禁止改动」列表里的文件;**不要**修改 .env / 密钥 / CI 配置;**不要**给评估器降级(如把失败测试 skip 掉)绕过门禁。`,
-      `3. 完成后在 project_root 执行 \`git add -A && git commit -m "letsgoal(iter-${iteration}): <一句话总结>"\`。`,
-      "4. 最后单独输出一行 JSON 摘要(便于解析),格式严格如下:",
-      `\`\`\`json
+  if (executionStyle === "ai_autonomous") {
+    blocks.push(
+      [
+        "# 你这一轮要做的事",
+        `1. 在 project_root (\`${dev.project_root}\`) 下做出代码改动。`,
+        `2. 完成后在 project_root 执行 \`git add -A && git commit -m "letsgoal(iter-${iteration}): <一句话总结>"\`。`,
+        "3. 最后，在 JSON 摘要之前，请输出一段反思，标题为 `## Learnings`。内容是你这一轮踩了什么坑、下次该怎么做。自由格式，2-5 句话即可。",
+        "4. 最后单独输出一行 JSON 摘要(便于解析),格式严格如下:",
+        `\`\`\`json
 {"changed_files": ["<相对路径>", ...], "commit_sha": "<完整 SHA>"}
 \`\`\``,
-      "5. 如果你判断这一轮无法解决(例如需求歧义、架构层面冲突),不要硬改。直接在 JSON 摘要里把 commit_sha 留空,并把决策理由写在 JSON 之前的文字里。",
-    ].join("\n"),
-  );
+        "5. 如果你判断这一轮无法解决,不要硬改。直接在 JSON 摘要里把 commit_sha 留空,并把决策理由写在 JSON 之前的文字里。",
+      ].join("\n"),
+    );
+  } else {
+    blocks.push(
+      [
+        "# 你这一轮要做的事",
+        `1. 在 project_root (\`${dev.project_root}\`) 下做出代码改动,目标是让三件套(lint / typecheck / test)全部通过。`,
+        `2. **不要**修改「禁止改动」列表里的文件;**不要**修改 .env / 密钥 / CI 配置;**不要**给评估器降级(如把失败测试 skip 掉)绕过门禁。`,
+        `3. 完成后在 project_root 执行 \`git add -A && git commit -m "letsgoal(iter-${iteration}): <一句话总结>"\`。`,
+        "4. 最后，在 JSON 摘要之前，请输出一段反思，标题为 `## Learnings`。内容是你这一轮踩了什么坑、下次该怎么做。自由格式，2-5 句话即可。",
+        "5. 最后单独输出一行 JSON 摘要(便于解析),格式严格如下:",
+        `\`\`\`json
+{"changed_files": ["<相对路径>", ...], "commit_sha": "<完整 SHA>"}
+\`\`\``,
+        "6. 如果你判断这一轮无法解决(例如需求歧义、架构层面冲突),不要硬改。直接在 JSON 摘要里把 commit_sha 留空,并把决策理由写在 JSON 之前的文字里。",
+      ].join("\n"),
+    );
+  }
 
   return blocks.join("\n\n");
 }
@@ -474,6 +538,20 @@ function parseClaudeSummary(
   return undefined;
 }
 
+/**
+ * 从 executor log 中提取 Claude 输出的 `## Learnings` 反思段落。
+ *
+ * 匹配规则:
+ *   - 以 `## Learnings` 标题开头
+ *   - 到下一个 `##` 标题、代码围栏(```) 或 JSON 摘要块 `{` 之前结束
+ */
+export function extractAiLearnings(log: string): string | undefined {
+  const match = /##\s*Learnings\n([\s\S]*?)(?=\n##\s|\n```|\{\s*"changed_files")/.exec(log);
+  if (match === null) return undefined;
+  const text = match[1].trim();
+  return text.length > 0 ? text : undefined;
+}
+
 // ============================================================================
 // 顶层入口
 // ============================================================================
@@ -533,6 +611,7 @@ export async function executeIteration(
 
   const logTail = readLogTail(logPath, LOG_TAIL_LINES);
   const claudeSummary = parseClaudeSummary(logTail);
+  const aiLearnings = extractAiLearnings(logTail);
 
   return {
     changed_files: changedFiles,
@@ -542,6 +621,7 @@ export async function executeIteration(
     claude_exit_code: spawnRes.exit_code,
     duration_ms: spawnRes.duration_ms,
     claude_summary: claudeSummary,
+    ai_learnings: aiLearnings,
   };
 }
 

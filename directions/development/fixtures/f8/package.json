@@ -1,0 +1,8 @@
+{
+  "name": "fizzbuzz-autonomous-fixture",
+  "version": "1.0.0",
+  "description": "F8 fixture: ai_autonomous mode + learnings accumulation",
+  "scripts": {
+    "test": "node test/fizzbuzz.test.js"
+  }
+}
