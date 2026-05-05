@@ -1,0 +1,1 @@
+{"iteration":1,"status":"passed","evaluation":{"hard_gates":[{"gate":"typecheck","passed":true},{"gate":"test","passed":true}],"hard_gates_all_passed":true,"weighted_score":1},"changed_files":["src/config-parser.ts"],"commit_sha":"8445f2067dd7c340636606f8f7e37c97f1140269","next_action":"done","started_at":"2026-05-05T02:42:04.822Z","ended_at":"2026-05-05T02:42:56.627Z"}

@@ -1,0 +1,9 @@
+{
+  "name": "resolveConfig merges defaults for missing fields",
+  "input": "resolveConfig({ port: 3000 }, { host: '0.0.0.0', port: 8080, debug: false, timeout: 60 })",
+  "expected_sections": [
+    "resolveConfig",
+    "defaults",
+    "merge"
+  ]
+}
