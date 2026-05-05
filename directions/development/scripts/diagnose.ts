@@ -6,7 +6,7 @@
  * 证据(stderr_tail)作为 Diagnosis.evidence 单独保留。
  */
 
-import type { Diagnosis, EvaluationResult } from "../../../core/scripts/types.js";
+import type { Diagnosis, EvaluationResult, IterationResult } from "../../../core/scripts/types.js";
 import { DEV_GATE_NAMES, type DevTaskType } from "./types.js";
 import type { EvaluatorResult, EvaluatorRunResult } from "./types.js";
 import { classifyFailure, isDiagnosisCategory, CATEGORY_REPAIR_HINTS } from "./classifier.js";
@@ -74,6 +74,7 @@ export function diagnoseDevelopmentFailure(
   evaluatorResult?: EvaluatorResult,
   taskType?: DevTaskType,
   opts?: DiagnoseOptions,
+  iterationHistory?: IterationResult[],
 ): Diagnosis {
   // 全过 → 不应进入这里,但保留兜底
   const failedGates = evaluation.hard_gates.filter((g) => !g.passed);
@@ -113,7 +114,7 @@ export function diagnoseDevelopmentFailure(
     }
   }
 
-  const category = classifyFailure(evaluation, evaluatorResult, taskType);
+  const category = classifyFailure(evaluation, evaluatorResult, taskType, iterationHistory);
 
   // M2.5: 经验沉淀写入
   writeCategoryLearning(opts?.workspacePath, category === "unknown" ? undefined : category);

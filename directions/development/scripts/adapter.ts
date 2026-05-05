@@ -40,6 +40,8 @@ import { resolve } from "node:path";
 interface IterCache {
   evaluator?: EvaluatorResult;
   aiLearnings?: string;
+  changedFiles?: string[];
+  commitSha?: string;
 }
 
 const iterCache = new Map<number, IterCache>();
@@ -78,6 +80,7 @@ function toHardGate(
 function evaluatorResultToEvaluation(
   task: LoopTask,
   raw: EvaluatorResult,
+  changedFiles?: string[],
 ): EvaluationResult {
   const requiredGates = new Set(task.success_criteria.hard_gates);
   const hardGates: HardGateResult[] = [];
@@ -143,14 +146,31 @@ function evaluatorResultToEvaluation(
   const allPassed = hardGates.every((g) => g.passed);
 
   // M2: 加权软分。硬门禁通过时从 EvaluatorResult 计算软分，否则 weighted_score = 0。
-  const softScores = allPassed ? computeSoftScores(raw, coverageTarget, coverageExtracted) : undefined;
+  const softScores = allPassed ? computeSoftScores(raw, coverageTarget, coverageExtracted, changedFiles) : undefined;
   const weightedScore = allPassed ? computeWeightedScore(softScores!) : 0.0;
+
+  // M2.6: 判定失败层级 failed_tier
+  let failedTier: string | undefined;
+  if (!allPassed || weightedScore < 1.0) {
+    const l0Gates = new Set(["lint", "typecheck"]);
+    const l0Failed = hardGates.some((g) => l0Gates.has(g.gate) && !g.passed);
+    if (l0Failed) {
+      failedTier = "L0";
+    } else if (hardGates.some((g) => g.gate === "test" && !g.passed)) {
+      failedTier = "L1";
+    } else if (hardGates.some((g) => g.gate === "coverage" && !g.passed) || (allPassed && weightedScore < 1.0)) {
+      failedTier = "L2";
+    } else if (hardGates.some((g) => (g.gate === "skill_syntax" || g.gate === "skill_eval") && !g.passed)) {
+      failedTier = "L3";
+    }
+  }
 
   return {
     hard_gates: hardGates,
     hard_gates_all_passed: allPassed,
     soft_scores: softScores,
     weighted_score: weightedScore,
+    failed_tier: failedTier,
   };
 }
 
@@ -226,10 +246,13 @@ async function execute(
     prevEvaluation: extractRawEvaluatorResult(context, iteration),
     prevDiagnosis: context.prev_diagnosis,
     execution_style: style,
+    prevFailedTier: context.prev_evaluation?.failed_tier,
   });
   // M2.5: 缓存 AI 自省供 diagnose 阶段使用
   const cache = iterCache.get(iteration) ?? {};
   cache.aiLearnings = out.ai_learnings;
+  cache.changedFiles = out.changed_files;
+  cache.commitSha = out.commit_sha;
   iterCache.set(iteration, cache);
   // 只保留最近两轮
   for (const key of iterCache.keys()) {
@@ -276,7 +299,8 @@ async function evaluate(
   for (const key of iterCache.keys()) {
     if (key < iteration - 1) iterCache.delete(key);
   }
-  const evaluation = evaluatorResultToEvaluation(task, raw);
+  const changedFiles = cache.changedFiles;
+  const evaluation = evaluatorResultToEvaluation(task, raw, changedFiles);
 
   // M2.5: 更新当前 story 状态
   updateStoryStatus(task, evaluation.hard_gates_all_passed);
@@ -288,6 +312,7 @@ async function diagnose(
   task: LoopTask,
   iteration: number,
   evaluation: EvaluationResult,
+  history?: IterationResult[],
 ): Promise<Diagnosis> {
   const cached = iterCache.get(iteration);
   const raw = cached?.evaluator;
@@ -298,6 +323,7 @@ async function diagnose(
     raw,
     dev.task_type,
     { workspacePath: task.workspace_path, aiLearnings },
+    history,
   );
 }
 

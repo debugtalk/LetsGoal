@@ -104,6 +104,7 @@ export interface EvaluationResult {
   hard_gates_all_passed: boolean;
   soft_scores?: SoftScoreItem[]; // M0 可省略
   weighted_score: number; // M0 可简化为"硬门禁通过则 1.0,否则 0.0"
+  failed_tier?: string; // M2.6: 失败层级 L0/L1/L2/L3，用于聚焦修复指引
 }
 
 // ============================================================================
@@ -247,7 +248,8 @@ export interface DirectionAdapter {
   diagnose(
     task: LoopTask,
     iteration: number,
-    evaluation: EvaluationResult
+    evaluation: EvaluationResult,
+    history?: IterationResult[],
   ): Promise<Diagnosis>;
 
   /** Report 阶段:每轮汇报(返回简短 summary 字符串) */

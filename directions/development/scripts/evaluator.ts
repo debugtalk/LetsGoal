@@ -334,6 +334,12 @@ function resolveEvalCasesDir(
 /**
  * 跑完三件套,拼装 EvaluatorResult。
  * 缺失字段表示该门禁未发现命令,被 skip。
+ *
+ * M2.6: L0-L3 分层执行。L0 失败跳过 L1+；L1 失败跳过 L3。
+ * - L0（结构）：lint + typecheck
+ * - L1（功能）：test
+ * - L2（质量）：coverage + soft scores（由 adapter 计算，evaluator 不跑额外命令）
+ * - L3（专项）：skill_syntax + skill_eval（仅 skill 任务）
  */
 export async function evaluateTask(task: LoopTask): Promise<EvaluatorResult> {
   const dev = asDevPayload(task.direction_payload);
@@ -347,12 +353,29 @@ export async function evaluateTask(task: LoopTask): Promise<EvaluatorResult> {
   const devJson = readLetsgoalDevJson(dev.project_root);
 
   const result: EvaluatorResult = {};
-  for (const gate of DEV_GATE_NAMES) {
+
+  // L0: lint + typecheck（结构层）
+  for (const gate of ["lint", "typecheck"] as const) {
     const r = await evaluateGate(gate, dev, language, pkgScripts, devJson);
     if (r !== undefined) result[gate] = r;
   }
 
-  // Skill 专用门禁(task_type=skill_creation / skill_optimize 时额外运行)
+  // L0 失败 → 跳过 L1-L3
+  const l0Failed = (result.lint !== undefined && !result.lint.passed) ||
+    (result.typecheck !== undefined && !result.typecheck.passed);
+  if (l0Failed) return result;
+
+  // L1: test（功能层）
+  const testResult = await evaluateGate("test", dev, language, pkgScripts, devJson);
+  if (testResult !== undefined) result.test = testResult;
+
+  // L1 失败 → 跳过 L2-L3（L2 由 adapter 处理，evaluator 只跳过 L3）
+  const l1Failed = result.test !== undefined && !result.test.passed;
+  if (l1Failed) return result;
+
+  // L2 由 adapter 计算 soft scores，evaluator 不跑额外命令
+
+  // L3: Skill 专用门禁（task_type=skill_creation / skill_optimize 时额外运行）
   const isSkillTask = dev.task_type === "skill_creation" || dev.task_type === "skill_optimize";
   if (isSkillTask) {
     const skillPath = resolve(dev.project_root, "SKILL.md");

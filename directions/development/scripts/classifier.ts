@@ -3,9 +3,11 @@
  *
  * 规则优先的确定性分类器，读取 EvaluatorResult 输出，
  * 将失败归类为 9 类之一，规则无法覆盖时返回 "unknown"。
+ *
+ * M2.6 新增 6 条规则（跨迭代模式、Claude 放弃、循环依赖、需求矛盾等）。
  */
 
-import type { EvaluationResult } from "../../../core/scripts/types.js";
+import type { EvaluationResult, IterationResult } from "../../../core/scripts/types.js";
 import type { EvaluatorResult, DevTaskType } from "./types.js";
 
 // ============================================================================
@@ -61,6 +63,9 @@ const SYNTAX_KEYWORDS = ["SyntaxError", "Unexpected token"];
 
 const TYPE_KEYWORDS = ["is not assignable", "Property '", "Argument of type", "Type '", "is missing the following properties", "Cannot find module"];
 
+/** 需求矛盾关键词（M2.6） */
+const CONTRADICTION_KEYWORDS = ["contradict", "Conflict"];
+
 // ============================================================================
 // 分类逻辑
 // ============================================================================
@@ -69,13 +74,39 @@ function containsAny(text: string, patterns: readonly string[]): boolean {
   return patterns.some((p) => text.includes(p));
 }
 
+/** 统计文本中 pattern 出现的次数 */
+function countOccurrences(text: string, pattern: string): number {
+  let count = 0;
+  let idx = 0;
+  while ((idx = text.indexOf(pattern, idx)) !== -1) {
+    count++;
+    idx += pattern.length;
+  }
+  return count;
+}
+
 /**
- * 规则优先的失败分类。
- *
- * 优先级：syntax_error > type_error > lint_violation > integration_error > test_failure
- * 规则无法覆盖的返回 "unknown"。
+ * 判断迭代历史中同 category 是否连续出现 N 次。
  */
-export function classifyFailure(
+function isConsecutiveCategory(history: IterationResult[], category: string, n: number): boolean {
+  if (history.length < n) return false;
+  const lastN = history.slice(-n);
+  return lastN.every((iter) => iter.diagnosis?.category === category);
+}
+
+/**
+ * 判断迭代历史中同 category 是否累计出现 N 次。
+ */
+function isRepeatedCategory(history: IterationResult[], category: string, n: number): boolean {
+  const count = history.filter((iter) => iter.diagnosis?.category === category).length;
+  return count >= n;
+}
+
+/**
+ * 门禁规则分类（不包含历史规则）。
+ * 保持原有优先级：syntax_error > type_error > lint_violation > integration_error > test_failure
+ */
+function classifyByGates(
   evaluation: EvaluationResult,
   evaluatorResult?: EvaluatorResult,
   taskType?: DevTaskType,
@@ -87,10 +118,21 @@ export function classifyFailure(
   const lintFailed = failedGateNames.has("lint");
   const testFailed = failedGateNames.has("test");
 
-  // typecheck 失败：用 stderr 精细区分 syntax_error / type_error
+  // typecheck 失败：用 stderr 精细区分 syntax_error / type_error / architecture_mismatch
   if (typecheckFailed) {
     if (evaluatorResult !== undefined) {
       const tcStderr = evaluatorResult.typecheck?.stderr_tail ?? "";
+
+      // M2.6: circular dependency → architecture_mismatch（优先于 syntax/type 关键词）
+      if (tcStderr.includes("circular") || tcStderr.includes("Circular dependency")) {
+        return "architecture_mismatch";
+      }
+
+      // M2.6: 3+ "is not assignable" → architecture_mismatch
+      if (countOccurrences(tcStderr, "is not assignable") >= 3) {
+        return "architecture_mismatch";
+      }
+
       if (containsAny(tcStderr, SYNTAX_KEYWORDS)) return "syntax_error";
       if (containsAny(tcStderr, TYPE_KEYWORDS)) return "type_error";
     }
@@ -100,11 +142,15 @@ export function classifyFailure(
   // lint 失败 + 其他门禁通过
   if (lintFailed && !testFailed) return "lint_violation";
 
-  // test 失败：用 stderr/stdout 区分 integration_error / test_failure
+  // test 失败：用 stderr/stdout 区分 requirement_ambiguity / integration_error / test_failure
   if (testFailed) {
     if (evaluatorResult !== undefined) {
       const testOutput =
         (evaluatorResult.test?.stderr_tail ?? "") + (evaluatorResult.test?.stdout_tail ?? "");
+
+      // M2.6: contradict/Conflict → requirement_ambiguity
+      if (containsAny(testOutput, CONTRADICTION_KEYWORDS)) return "requirement_ambiguity";
+
       if (containsAny(testOutput, INTEGRATION_KEYWORDS)) return "integration_error";
       if (
         evaluatorResult.test?.parsed_failures &&
@@ -132,4 +178,50 @@ export function classifyFailure(
   }
 
   return "unknown";
+}
+
+/**
+ * 规则优先的失败分类。
+ *
+ * 优先级：syntax_error > type_error > lint_violation > integration_error > test_failure
+ * 规则无法覆盖的返回 "unknown"。
+ *
+ * M2.6 新增规则（不改变已有分类规则优先级，作为后处理增强和兜底）：
+ * - typecheck 含 circular/Circular dependency → architecture_mismatch
+ * - typecheck 含 3+ "is not assignable" → architecture_mismatch
+ * - test 含 contradict/Conflict → requirement_ambiguity
+ * - 历史：同 category 连续 3 次 → architecture_mismatch
+ * - 历史：空 commit_sha + 无 changed_files → requirement_ambiguity
+ * - 兜底：同 category 重复 3 次 → 升级为 architecture_mismatch
+ */
+export function classifyFailure(
+  evaluation: EvaluationResult,
+  evaluatorResult?: EvaluatorResult,
+  taskType?: DevTaskType,
+  iterationHistory?: IterationResult[],
+): DiagnosisCategory {
+  // Phase 1: 门禁规则分类（保持原有优先级不变）
+  let category = classifyByGates(evaluation, evaluatorResult, taskType);
+
+  // Phase 2: 基于迭代历史的后处理规则（M2.6）
+  if (iterationHistory !== undefined && iterationHistory.length > 0) {
+    // 规则: 同 category 连续 3 次 → architecture_mismatch
+    const lastCategory = iterationHistory[iterationHistory.length - 1]?.diagnosis?.category;
+    if (lastCategory && isConsecutiveCategory(iterationHistory, lastCategory, 3)) {
+      return "architecture_mismatch";
+    }
+
+    // 规则: 空 commit_sha + 无 changed_files（Claude 放弃）→ requirement_ambiguity
+    const lastIter = iterationHistory[iterationHistory.length - 1];
+    if (lastIter && !lastIter.commit_sha && lastIter.changed_files.length === 0) {
+      return "requirement_ambiguity";
+    }
+
+    // 兜底: 同 category 重复 3 次 → 升级为 architecture_mismatch
+    if (lastCategory && isRepeatedCategory(iterationHistory, lastCategory, 3)) {
+      return "architecture_mismatch";
+    }
+  }
+
+  return category;
 }

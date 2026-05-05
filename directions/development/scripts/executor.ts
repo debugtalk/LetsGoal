@@ -61,6 +61,7 @@ export interface ExecutorInput {
   prevEvaluation?: EvaluatorResult;
   prevDiagnosis?: Diagnosis;
   execution_style?: ExecutionStyle; // M2.5: 执行风格覆盖
+  prevFailedTier?: string; // M2.6: 上一轮失败层级 L0/L1/L2/L3
 }
 
 export interface ExecutorOutput {
@@ -212,6 +213,19 @@ export function buildPrompt(input: ExecutorInput): string {
 
   // 上一轮信息(N>1 时)
   if (iteration > 1) {
+    // M2.6: 分层修复指引
+    if (input.prevFailedTier !== undefined) {
+      const tierGuidance: Record<string, string> = {
+        L0: "上一轮在 L0 失败（语法/类型错误），仅修复这些基础问题，不要尝试功能变更",
+        L1: "L0 已通过，专注让测试通过",
+        L2: "功能已通过，专注提高覆盖率和代码质量",
+        L3: "功能和质量已通过，专注修复 Skill 专项问题",
+      };
+      const guidance = tierGuidance[input.prevFailedTier];
+      if (guidance) {
+        blocks.push(`# 分层修复指引\n${guidance}`);
+      }
+    }
     if (input.prevEvaluation !== undefined) {
       const e = input.prevEvaluation;
       const gateLines = [

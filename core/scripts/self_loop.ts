@@ -421,7 +421,7 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
     // ---- diagnose(失败时)----
     if (!passed) {
       try {
-        diagnosis = await adapter.diagnose(task, iter, evaluation);
+        diagnosis = await adapter.diagnose(task, iter, evaluation, iterations);
         if (stageError !== undefined) {
           // 在 diagnosis 里同时记录阶段异常
           diagnosis = {
