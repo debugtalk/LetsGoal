@@ -5,6 +5,8 @@ import {
   claudePermissionMode,
   reportVerbosity,
   loadResumedState,
+  shouldNotifyOnDecision,
+  getNotificationConfig,
 } from "../autonomy.js";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -237,5 +239,63 @@ describe("loadResumedState", () => {
 
     const state = loadResumedState(tmpDir);
     expect(state!.task.status).toBe("running");
+  });
+});
+
+// ============================================================================
+// shouldNotifyOnDecision
+// ============================================================================
+
+describe("shouldNotifyOnDecision", () => {
+  it("strict 模式下所有事件都通知", () => {
+    expect(shouldNotifyOnDecision("strict", "escalation")).toBe(true);
+    expect(shouldNotifyOnDecision("strict", "awaiting_human")).toBe(true);
+    expect(shouldNotifyOnDecision("strict", "consecutive_failures")).toBe(true);
+    expect(shouldNotifyOnDecision("strict", "task_completed")).toBe(true);
+  });
+
+  it("standard 模式下 awaiting_human 不通知（因为已经暂停了）", () => {
+    expect(shouldNotifyOnDecision("standard", "awaiting_human")).toBe(false);
+  });
+
+  it("standard 模式下其他事件都通知", () => {
+    expect(shouldNotifyOnDecision("standard", "escalation")).toBe(true);
+    expect(shouldNotifyOnDecision("standard", "consecutive_failures")).toBe(true);
+    expect(shouldNotifyOnDecision("standard", "task_completed")).toBe(true);
+  });
+
+  it("autonomous 模式仅 escalation 和 task_completed 通知", () => {
+    expect(shouldNotifyOnDecision("autonomous", "escalation")).toBe(true);
+    expect(shouldNotifyOnDecision("autonomous", "task_completed")).toBe(true);
+    expect(shouldNotifyOnDecision("autonomous", "awaiting_human")).toBe(false);
+    expect(shouldNotifyOnDecision("autonomous", "consecutive_failures")).toBe(false);
+  });
+});
+
+// ============================================================================
+// getNotificationConfig
+// ============================================================================
+
+describe("getNotificationConfig", () => {
+  it("从 LoopTask 提取通知配置", () => {
+    const task: Partial<import("../types.js").LoopTask> = {
+      config: {
+        max_iterations: 10,
+        min_score: 0.92,
+        notify_channel: "both",
+        feishu_chat_id: "chat-001",
+      },
+    };
+    const config = getNotificationConfig(task as import("../types.js").LoopTask);
+    expect(config.channel).toBe("both");
+    expect(config.feishu_chat_id).toBe("chat-001");
+  });
+
+  it("默认 terminal 通道", () => {
+    const task: Partial<import("../types.js").LoopTask> = {
+      config: { max_iterations: 10, min_score: 0.92 },
+    };
+    const config = getNotificationConfig(task as import("../types.js").LoopTask);
+    expect(config.channel).toBe("terminal");
   });
 });

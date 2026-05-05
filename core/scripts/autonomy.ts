@@ -14,6 +14,8 @@ import type {
 } from "./types.js";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import type { NotificationConfig, NotificationEvent } from "./notifier.js";
+import { extractNotificationConfig } from "./notifier.js";
 
 // ============================================================================
 // 导出接口
@@ -46,6 +48,38 @@ export function reportVerbosity(
   mode: AutonomyMode,
 ): "full" | "minimal" | "silent" {
   return mode === "autonomous" ? "minimal" : "full";
+}
+
+// ============================================================================
+// 通知决策
+// ============================================================================
+
+/**
+ * 判断当前决策是否需要通知。
+ *
+ * - strict 模式：所有事件都通知
+ * - standard 模式：escalation / awaiting_human / task_completed 通知，consecutive_failures 通知
+ * - autonomous 模式：仅 escalation / task_completed 通知
+ */
+export function shouldNotifyOnDecision(
+  autonomyMode: AutonomyMode,
+  event: NotificationEvent,
+): boolean {
+  if (autonomyMode === "strict") return true;
+
+  if (autonomyMode === "standard") {
+    return event !== "awaiting_human";
+  }
+
+  // autonomous
+  return event === "escalation" || event === "task_completed";
+}
+
+/**
+ * 从 LoopTask 提取通知配置。
+ */
+export function getNotificationConfig(task: LoopTask): NotificationConfig {
+  return extractNotificationConfig(task.config);
 }
 
 // ============================================================================
