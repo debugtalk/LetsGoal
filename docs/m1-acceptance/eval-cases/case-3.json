@@ -1,0 +1,16 @@
+{
+  "name": "SKILL 输入输出契约含 JSONL + 7 字段表格",
+  "input": "",
+  "expected_sections": [
+    "输入",
+    "输出",
+    "JSONL",
+    "platform_name",
+    "rank",
+    "catalog_name",
+    "catalog_type",
+    "release_date",
+    "tag",
+    "collected_date"
+  ]
+}

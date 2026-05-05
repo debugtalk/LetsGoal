@@ -1,0 +1,9 @@
+{
+  "name": "SKILL 包含适用场景（TRIGGER + SKIP）",
+  "input": "",
+  "expected_sections": [
+    "适用场景",
+    "TRIGGER when",
+    "SKIP when"
+  ]
+}

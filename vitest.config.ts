@@ -5,6 +5,7 @@ export default defineConfig({
     exclude: [
       "node_modules",
       "directions/*/fixtures/**",
+      "docs/**",
     ],
   },
 });

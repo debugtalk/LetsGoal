@@ -1,0 +1,10 @@
+{
+  "name": "SKILL 执行步骤 >=6 步，引用 seed-runner 和 android-adb",
+  "input": "",
+  "expected_sections": [
+    "执行步骤",
+    "### 步骤",
+    "seed-runner",
+    "android-adb"
+  ]
+}

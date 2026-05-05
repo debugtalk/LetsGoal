@@ -1,0 +1,10 @@
+{
+  "name": "SKILL frontmatter 含 name（kebab-case）和 description",
+  "input": "",
+  "expected_sections": [
+    "name:",
+    "description:",
+    "腾讯",
+    "采集"
+  ]
+}

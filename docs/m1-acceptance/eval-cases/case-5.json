@@ -1,0 +1,9 @@
+{
+  "name": "SKILL 约束 >=5 条，含 force-stop + partial output + 包名",
+  "input": "",
+  "expected_sections": [
+    "force-stop",
+    "com.tencent.qqlive",
+    "partial output"
+  ]
+}
