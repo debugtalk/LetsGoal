@@ -26,6 +26,7 @@ import type {
   Diagnosis,
   LoopTask,
   ExecutionStyle,
+  FailedTier,
 } from "../../../core/scripts/types.js";
 import { EXECUTION_STYLE_AI_AUTONOMOUS, EXECUTION_STYLE_STRUCTURED } from "../../../core/scripts/types.js";
 import type {
@@ -61,7 +62,7 @@ export interface ExecutorInput {
   prevEvaluation?: EvaluatorResult;
   prevDiagnosis?: Diagnosis;
   execution_style?: ExecutionStyle; // M2.5: 执行风格覆盖
-  prevFailedTier?: string; // M2.6: 上一轮失败层级 L0/L1/L2/L3
+  prevFailedTier?: FailedTier;
 }
 
 export interface ExecutorOutput {

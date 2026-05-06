@@ -6,7 +6,6 @@ import {
   reportVerbosity,
   loadResumedState,
   shouldNotifyOnDecision,
-  getNotificationConfig,
 } from "../autonomy.js";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -273,29 +272,5 @@ describe("shouldNotifyOnDecision", () => {
 });
 
 // ============================================================================
-// getNotificationConfig
+// extractNotificationConfig (now in notifier.ts, tested there)
 // ============================================================================
-
-describe("getNotificationConfig", () => {
-  it("从 LoopTask 提取通知配置", () => {
-    const task: Partial<import("../types.js").LoopTask> = {
-      config: {
-        max_iterations: 10,
-        min_score: 0.92,
-        notify_channel: "both",
-        feishu_chat_id: "chat-001",
-      },
-    };
-    const config = getNotificationConfig(task as import("../types.js").LoopTask);
-    expect(config.channel).toBe("both");
-    expect(config.feishu_chat_id).toBe("chat-001");
-  });
-
-  it("默认 terminal 通道", () => {
-    const task: Partial<import("../types.js").LoopTask> = {
-      config: { max_iterations: 10, min_score: 0.92 },
-    };
-    const config = getNotificationConfig(task as import("../types.js").LoopTask);
-    expect(config.channel).toBe("terminal");
-  });
-});

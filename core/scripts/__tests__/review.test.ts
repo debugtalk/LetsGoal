@@ -34,7 +34,7 @@ describe("review", () => {
         stderr: "",
       } as ReturnType<typeof spawnSync>);
 
-      const result = await reviewRequirement("实现用户登录");
+      const result = reviewRequirement("实现用户登录");
       expect(result.clarified_goal).toBe("实现基于 JWT 的用户登录功能");
       expect(result.suggested_constraints).toEqual(["使用 bcrypt 加密密码"]);
       expect(result.suggested_stories).toHaveLength(1);
@@ -59,18 +59,18 @@ describe("review", () => {
         stderr: "",
       } as ReturnType<typeof spawnSync>);
 
-      const result = await reviewRequirement("test");
+      const result = reviewRequirement("test");
       expect(result.clarified_goal).toBe("test goal");
     });
 
-    it("returns default ReviewOutput when claude fails", async () => {
+    it("throws when claude fails", () => {
       mockedSpawnSync.mockReturnValue({
         status: 1,
         stdout: "",
         stderr: "error",
       } as ReturnType<typeof spawnSync>);
 
-      await expect(reviewRequirement("test")).rejects.toThrow(
+      expect(() => reviewRequirement("test")).toThrow(
         "claude 需求结构化失败",
       );
     });
@@ -82,7 +82,7 @@ describe("review", () => {
         stderr: "",
       } as ReturnType<typeof spawnSync>);
 
-      const result = await reviewRequirement("原始需求文本");
+      const result = reviewRequirement("原始需求文本");
       expect(result.raw_requirement).toBe("原始需求文本");
       expect(result.confidence).toBe(0.1);
     });
@@ -103,7 +103,7 @@ describe("review", () => {
         stderr: "",
       } as ReturnType<typeof spawnSync>);
 
-      const result = await reviewRequirement("test");
+      const result = reviewRequirement("test");
       expect(result.confidence).toBe(1);
     });
   });

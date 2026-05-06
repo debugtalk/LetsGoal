@@ -33,6 +33,12 @@ export type AutonomyMode = "strict" | "standard" | "autonomous";
 // 执行风格(M2.5 启用,默认为 structured)
 export type ExecutionStyle = "structured" | "ai_autonomous";
 
+// 评估失败层级(M2.6)
+export type FailedTier = "L0" | "L1" | "L2" | "L3";
+
+// 通知通道(M2.6)
+export type NotifyChannel = "terminal" | "feishu" | "both";
+
 export const EXECUTION_STYLE_STRUCTURED: ExecutionStyle = "structured";
 export const EXECUTION_STYLE_AI_AUTONOMOUS: ExecutionStyle = "ai_autonomous";
 
@@ -104,7 +110,7 @@ export interface EvaluationResult {
   hard_gates_all_passed: boolean;
   soft_scores?: SoftScoreItem[]; // M0 可省略
   weighted_score: number; // M0 可简化为"硬门禁通过则 1.0,否则 0.0"
-  failed_tier?: string; // M2.6: 失败层级 L0/L1/L2/L3，用于聚焦修复指引
+  failed_tier?: FailedTier; // M2.6: 失败层级，用于聚焦修复指引
 }
 
 // ============================================================================
@@ -179,7 +185,7 @@ export interface LoopConfig {
   feishu_doc_url?: string; // 飞书文档 URL(review 后填充)
   feishu_doc_id?: string; // 飞书文档 ID(review 后填充)
   feishu_chat_id?: string; // 飞书群聊 ID(通知用)
-  notify_channel?: "terminal" | "feishu" | "both"; // 通知通道,默认 terminal
+  notify_channel?: NotifyChannel; // 通知通道,默认 terminal
 }
 
 /**

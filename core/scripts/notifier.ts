@@ -5,9 +5,8 @@
  * 通知失败不影响主循环运行。
  */
 
-import { spawnSync } from "node:child_process";
 import type { LoopConfig } from "./types.js";
-import { isLarkCliAvailable } from "./feishu.js";
+import { isLarkCliAvailable, sendFeishuMessage } from "./feishu.js";
 
 // ============================================================================
 // 类型定义
@@ -19,9 +18,11 @@ export type NotificationEvent =
   | "consecutive_failures"
   | "task_completed";
 
+export type NotifyChannel = "terminal" | "feishu" | "both";
+
 export interface NotificationConfig {
   enabled: boolean;
-  channel: "terminal" | "feishu" | "both";
+  channel: NotifyChannel;
   feishu_chat_id?: string;
   consecutive_failure_threshold: number;
 }
@@ -45,12 +46,10 @@ export function shouldNotify(
 ): boolean {
   if (!config.enabled) return false;
 
-  // escalation 和 awaiting_human 始终通知
   if (event === "escalation" || event === "awaiting_human" || event === "task_completed") {
     return true;
   }
 
-  // consecutive_failures 达到阈值时通知
   if (event === "consecutive_failures") {
     return (consecutiveCount ?? 0) >= config.consecutive_failure_threshold;
   }
@@ -66,17 +65,15 @@ export async function sendNotification(
   payload: NotificationPayload,
   config: NotificationConfig,
 ): Promise<void> {
-  // 终端通知
   if (config.channel === "terminal" || config.channel === "both") {
-    const text = formatTerminalNotification(payload);
-    process.stdout.write(text + "\n");
+    process.stdout.write(formatTerminalNotification(payload) + "\n");
   }
 
-  // 飞书通知
   if (config.channel === "feishu" || config.channel === "both") {
     if (config.feishu_chat_id) {
       try {
-        await sendFeishuNotification(payload, config.feishu_chat_id);
+        const md = buildFeishuMarkdown(payload);
+        sendFeishuMessage(config.feishu_chat_id, md);
       } catch (e) {
         process.stderr.write(
           `[notifier] 飞书通知发送失败: ${(e as Error).message}\n`,
@@ -108,7 +105,6 @@ export function formatTerminalNotification(payload: NotificationPayload): string
     lines.push(`  detail: ${payload.detail}`);
   }
 
-  // 操作建议
   const hints: Record<NotificationEvent, string> = {
     escalation: "→ 建议: 检查归因分类，决定是否人工介入",
     awaiting_human: "→ 建议: 使用 --resume 继续任务",
@@ -121,32 +117,8 @@ export function formatTerminalNotification(payload: NotificationPayload): string
 }
 
 // ============================================================================
-// 飞书消息通知
+// 飞书消息格式化
 // ============================================================================
-
-export async function sendFeishuNotification(
-  payload: NotificationPayload,
-  chatId: string,
-): Promise<void> {
-  if (!isLarkCliAvailable()) {
-    process.stderr.write("[notifier] lark-cli 不可用，跳过飞书通知\n");
-    return;
-  }
-
-  const md = buildFeishuMarkdown(payload);
-
-  const r = spawnSync(
-    "lark-cli",
-    ["im", "+messages-send", "--chat-id", chatId, "--markdown", md, "--as", "bot"],
-    { encoding: "utf-8", timeout: 15_000 },
-  );
-
-  if (r.error || r.status !== 0) {
-    throw new Error(
-      `lark-cli 发送消息失败: ${r.error?.message ?? `exit ${r.status}`}`,
-    );
-  }
-}
 
 function buildFeishuMarkdown(payload: NotificationPayload): string {
   const eventLabel: Record<NotificationEvent, string> = {
@@ -173,16 +145,18 @@ function buildFeishuMarkdown(payload: NotificationPayload): string {
 // ============================================================================
 
 export function extractNotificationConfig(config: LoopConfig): NotificationConfig {
-  const channel = config.notify_channel ?? "terminal";
+  let channel: NotifyChannel = config.notify_channel ?? "terminal";
   const hasFeishuChat = Boolean(config.feishu_chat_id);
+  const canFeishu = hasFeishuChat && isLarkCliAvailable();
+
+  // 飞书不可用时降级到终端
+  if (!canFeishu && (channel === "feishu" || channel === "both")) {
+    channel = "terminal";
+  }
 
   return {
     enabled: true,
-    channel: hasFeishuChat && (channel === "feishu" || channel === "both")
-      ? channel
-      : channel === "feishu" && !hasFeishuChat
-        ? "terminal"
-        : channel,
+    channel,
     feishu_chat_id: config.feishu_chat_id,
     consecutive_failure_threshold: 3,
   };

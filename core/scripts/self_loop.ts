@@ -41,15 +41,17 @@ import {
   shouldPauseOnEscalation,
   loadResumedState,
   shouldNotifyOnDecision,
-  getNotificationConfig,
 } from "./autonomy.js";
 import { reviewRequirement, generateReviewMarkdown } from "./review.js";
-import { createDoc, appendDoc, isLarkCliAvailable } from "./feishu.js";
+import { createDoc, appendDoc } from "./feishu.js";
 import {
   shouldNotify,
   sendNotification,
+  extractNotificationConfig,
+  type NotificationConfig,
+  type NotificationPayload,
+  type NotificationEvent,
 } from "./notifier.js";
-import type { NotificationPayload } from "./notifier.js";
 
 // ============================================================================
 // CLI 参数
@@ -57,10 +59,10 @@ import type { NotificationPayload } from "./notifier.js";
 
 interface CliArgs {
   direction: LoopDirection;
-  input: string; // markdown 路径
-  workspace: string; // 工作目录路径
-  resume?: boolean; // 从 task-state.json 续跑(M0 不实现,占位)
-  dryRun?: boolean; // 解析 + plan 后退出,不进入主循环
+  input: string;
+  workspace: string;
+  resume?: boolean;
+  dryRun?: boolean;
 }
 
 function parseCliArgs(): CliArgs {
@@ -179,7 +181,6 @@ function escapeMd(s: string): string {
   return s.replace(/\|/g, "\\|").replace(/\n/g, " ");
 }
 
-/** 格式化迭代摘要 Markdown（追加到飞书文档） */
 function formatIterationMarkdown(iter: IterationResult): string {
   const gates = iter.evaluation.hard_gates
     .map((g) => `${g.gate} ${g.passed ? "✅" : "❌"}`)
@@ -216,6 +217,22 @@ function pauseForHuman(task: LoopTask, message: string): number {
 }
 
 // ============================================================================
+// 通知辅助（合并 autonomy + config 双重判断）
+// ============================================================================
+
+function tryNotify(
+  event: NotificationEvent,
+  payload: Omit<NotificationPayload, "event">,
+  autonomyMode: string,
+  notifyConfig: NotificationConfig,
+  consecutiveCount?: number,
+): void {
+  if (!shouldNotifyOnDecision(autonomyMode as "strict" | "standard" | "autonomous", event)) return;
+  if (!shouldNotify(event, notifyConfig, consecutiveCount)) return;
+  sendNotification({ ...payload, event }, notifyConfig).catch(() => {});
+}
+
+// ============================================================================
 // Review 阶段(M2.6)
 // ============================================================================
 
@@ -230,17 +247,16 @@ async function runReviewPhase(task: LoopTask): Promise<LoopTask> {
     process.stderr.write(
       `[self-loop] review 需求结构化失败: ${(e as Error).message}\n`,
     );
-    // 结构化失败,跳过 review 阶段,直接进入 plan
     return task;
   }
 
-  // 尝试创建飞书文档
-  const notifyChannel = task.config.notify_channel ?? "terminal";
   const markdown = generateReviewMarkdown(review);
+  const notifyConfig = extractNotificationConfig(task.config);
 
-  if (isLarkCliAvailable() && (notifyChannel === "feishu" || notifyChannel === "both")) {
+  // 飞书文档创建（notifyConfig.channel 已考虑 lark-cli 可用性降级）
+  if (notifyConfig.channel === "feishu" || notifyConfig.channel === "both") {
     try {
-      const docRef = await createDoc(
+      const docRef = createDoc(
         `需求 Review: ${task.goal.slice(0, 50)}`,
         markdown,
       );
@@ -256,7 +272,6 @@ async function runReviewPhase(task: LoopTask): Promise<LoopTask> {
     }
   }
 
-  // 在终端输出结构化摘要
   process.stdout.write(`\n${markdown}\n\n`);
 
   if (task.config.feishu_doc_url) {
@@ -268,8 +283,6 @@ async function runReviewPhase(task: LoopTask): Promise<LoopTask> {
     `[self-loop] 需求已结构化,等待确认后 --resume 继续\n`,
   );
 
-  // 保存 review 结果到 direction_payload 以便后续使用
-  task.direction_payload._review_output = review as unknown as Record<string, unknown>;
   task.status = "awaiting_review";
   task.updated_at = new Date().toISOString();
   saveTaskState(task);
@@ -282,7 +295,6 @@ async function runReviewPhase(task: LoopTask): Promise<LoopTask> {
 // ============================================================================
 
 async function runSelfLoop(args: CliArgs): Promise<number> {
-  // 1. 解析 markdown → LoopTask，或从 task-state.json 恢复
   let task: LoopTask;
   let iterations: IterationResult[] = [];
   let prevEvaluation: EvaluationResult | undefined;
@@ -315,26 +327,23 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
   ensureLgDir(task);
   saveTaskState(task);
 
-  // 2. review 阶段(resume 且状态为 awaiting_review 时也进入此分支)
+  // review 阶段
   if (!args.resume && task.raw_requirement) {
     task = await runReviewPhase(task);
     if (task.status === "awaiting_review") {
-      return 10; // 等待用户确认后 --resume
+      return 10;
     }
   } else if (args.resume && task.status === "awaiting_review") {
     process.stdout.write(
       `[self-loop] resume from awaiting_review, task_id=${task.task_id}\n`,
     );
-    // 用户确认后进入 plan
     task.status = "draft";
     task.updated_at = new Date().toISOString();
     saveTaskState(task);
   }
 
-  // 3. 加载 adapter
   const adapter = await loadAdapter(args.direction);
 
-  // 3. plan 阶段（resume 时跳过，plan 已在首次运行时执行）— 注意编号已变，这是原 step 3
   if (!args.resume) {
     task = await adapter.plan(task);
     saveTaskState(task);
@@ -345,7 +354,6 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
     return 0;
   }
 
-  // 4. 主循环
   task.status = "running";
   saveTaskState(task);
 
@@ -355,27 +363,21 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
 
   const startIter = args.resume ? task.current_iteration + 1 : 1;
   const autonomyMode = task.config.autonomy_mode ?? "standard";
-  const notifyConfig = getNotificationConfig(task);
+  const notifyConfig = extractNotificationConfig(task.config);
 
-  // 连续同类失败跟踪
   let consecutiveFailureCategory: string | undefined;
   let consecutiveFailureCount = 0;
 
   for (let iter = startIter; iter <= task.config.max_iterations; iter++) {
-    // ---- strict 模式暂停检查点 ----
     if (shouldPauseBeforeExecution(autonomyMode)) {
-      // 通知: 等待人工决策
-      const payload: NotificationPayload = {
-        event: "awaiting_human",
+      tryNotify("awaiting_human", {
         task_id: task.task_id,
         iteration: iter,
         message: `strict 模式: 第 ${iter} 轮执行前暂停`,
-      };
-      if (shouldNotifyOnDecision(autonomyMode, "awaiting_human") && shouldNotify("awaiting_human", notifyConfig)) {
-        await sendNotification(payload, notifyConfig).catch(() => {});
-      }
+      }, autonomyMode, notifyConfig);
       return pauseForHuman(task, `strict 模式: 第 ${iter} 轮执行前暂停，等待人工确认后 --resume 继续`);
     }
+
     const startedAt = new Date().toISOString();
     let exec: { changed_files: string[]; commit_sha?: string } = {
       changed_files: [],
@@ -389,7 +391,6 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
     let diagnosis: Diagnosis | undefined;
     let stageError: string | undefined;
 
-    // ---- execute ----
     try {
       exec = await adapter.execute(task, iter, {
         prev_evaluation: prevEvaluation,
@@ -401,7 +402,6 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
       process.stderr.write(`[self-loop iter-${iter}] ${stageError}\n`);
     }
 
-    // ---- evaluate ----
     if (stageError === undefined) {
       try {
         evaluation = await adapter.evaluate(task, iter);
@@ -411,19 +411,16 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
       }
     }
 
-    // ---- 判定状态 ----
     const passed =
       stageError === undefined &&
       evaluation.hard_gates_all_passed &&
       evaluation.weighted_score >= task.config.min_score;
     const status: IterationStatus = passed ? "passed" : "failed";
 
-    // ---- diagnose(失败时)----
     if (!passed) {
       try {
         diagnosis = await adapter.diagnose(task, iter, evaluation, iterations);
         if (stageError !== undefined) {
-          // 在 diagnosis 里同时记录阶段异常
           diagnosis = {
             reason: `${stageError}; ${diagnosis.reason}`,
             evidence: diagnosis.evidence,
@@ -436,42 +433,31 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
       }
     }
 
-    // ---- 决定下一步 ----
     let nextAction: NextAction;
     if (passed) nextAction = "done";
     else if (iter >= task.config.max_iterations) nextAction = "escalate";
     else if (shouldPauseOnEscalation(autonomyMode) && diagnosis?.category && adapter.escalate_categories.has(diagnosis.category)) {
-      // 通知: 归因升级
-      const escPayload: NotificationPayload = {
-        event: "escalation",
+      tryNotify("escalation", {
         task_id: task.task_id,
         iteration: iter,
         message: `归因升级: ${diagnosis.category}`,
         detail: diagnosis.reason,
-      };
-      if (shouldNotifyOnDecision(autonomyMode, "escalation") && shouldNotify("escalation", notifyConfig)) {
-        await sendNotification(escPayload, notifyConfig).catch(() => {});
-      }
+      }, autonomyMode, notifyConfig);
       return pauseForHuman(task, `strict 模式: 归因为 ${diagnosis.category}，等待人工确认后 --resume 继续`);
     }
     else nextAction = "retry";
 
-    // ---- 诊断后通知（非 strict 暂停的升级场景） ----
+    // 非暂停但有升级分类
     if (!passed && diagnosis?.category && adapter.escalate_categories.has(diagnosis.category) && nextAction === "retry") {
-      // 非暂停但有升级分类，仍发通知
-      const diagPayload: NotificationPayload = {
-        event: "escalation",
+      tryNotify("escalation", {
         task_id: task.task_id,
         iteration: iter,
         message: `归因升级（继续重试）: ${diagnosis.category}`,
         detail: diagnosis.reason,
-      };
-      if (shouldNotifyOnDecision(autonomyMode, "escalation") && shouldNotify("escalation", notifyConfig)) {
-        await sendNotification(diagPayload, notifyConfig).catch(() => {});
-      }
+      }, autonomyMode, notifyConfig);
     }
 
-    // ---- 连续同类失败跟踪 ----
+    // 连续同类失败跟踪
     if (!passed && diagnosis?.category) {
       if (diagnosis.category === consecutiveFailureCategory) {
         consecutiveFailureCount++;
@@ -480,17 +466,13 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
         consecutiveFailureCount = 1;
       }
 
-      if (shouldNotify("consecutive_failures", notifyConfig, consecutiveFailureCount)) {
-        const cfPayload: NotificationPayload = {
-          event: "consecutive_failures",
+      if (consecutiveFailureCount >= (notifyConfig.consecutive_failure_threshold)) {
+        tryNotify("consecutive_failures", {
           task_id: task.task_id,
           iteration: iter,
           message: `同一分类连续失败 ${consecutiveFailureCount} 次: ${consecutiveFailureCategory}`,
           detail: diagnosis.reason,
-        };
-        if (shouldNotifyOnDecision(autonomyMode, "consecutive_failures")) {
-          await sendNotification(cfPayload, notifyConfig).catch(() => {});
-        }
+        }, autonomyMode, notifyConfig, consecutiveFailureCount);
       }
     } else if (passed) {
       consecutiveFailureCategory = undefined;
@@ -512,7 +494,6 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
     iterations.push(iterResult);
     appendIterationsJsonl(task, iterResult);
 
-    // ---- 更新 task 状态 ----
     task.current_iteration = iter;
     task.updated_at = new Date().toISOString();
     if (evaluation.weighted_score > task.best_score) {
@@ -521,7 +502,6 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
     }
     saveTaskState(task);
 
-    // ---- report ----
     try {
       const summary = await adapter.report(task, iterResult);
       process.stdout.write(`[self-loop] ${summary}\n`);
@@ -529,11 +509,10 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
       process.stderr.write(`[self-loop] report 异常(忽略): ${(e as Error).message}\n`);
     }
 
-    // ---- 迭代过程记录到飞书文档 ----
     if (task.config.feishu_doc_id) {
       try {
         const iterMd = formatIterationMarkdown(iterResult);
-        await appendDoc(task.config.feishu_doc_id, iterMd);
+        appendDoc(task.config.feishu_doc_id, iterMd);
       } catch (e) {
         process.stderr.write(
           `[self-loop] 飞书迭代记录追加失败(忽略): ${(e as Error).message}\n`,
@@ -544,40 +523,28 @@ async function runSelfLoop(args: CliArgs): Promise<number> {
     if (passed) {
       task.status = "passed";
       saveTaskState(task);
-      // 通知: 任务完成
-      const donePayload: NotificationPayload = {
-        event: "task_completed",
+      tryNotify("task_completed", {
         task_id: task.task_id,
         iteration: iter,
         message: `任务通过验收，共 ${iter} 轮迭代`,
         detail: `最佳分数: ${task.best_score}`,
-      };
-      if (shouldNotifyOnDecision(autonomyMode, "task_completed") && shouldNotify("task_completed", notifyConfig)) {
-        await sendNotification(donePayload, notifyConfig).catch(() => {});
-      }
+      }, autonomyMode, notifyConfig);
       break;
     }
 
-    // 准备下一轮
     prevEvaluation = evaluation;
     prevDiagnosis = diagnosis;
   }
 
-  // 终态
   if (task.status !== "passed") {
     task.status = "failed";
     saveTaskState(task);
-    // 通知: 任务完成（失败）
-    const failPayload: NotificationPayload = {
-      event: "task_completed",
+    tryNotify("task_completed", {
       task_id: task.task_id,
       iteration: task.current_iteration,
       message: `任务失败，已达最大迭代 ${task.config.max_iterations} 轮`,
       detail: `最佳分数: ${task.best_score}（轮次 ${task.best_iteration}）`,
-    };
-    if (shouldNotifyOnDecision(autonomyMode, "task_completed") && shouldNotify("task_completed", notifyConfig)) {
-      await sendNotification(failPayload, notifyConfig).catch(() => {});
-    }
+    }, autonomyMode, notifyConfig);
   }
 
   const reportPath = writeFinalReport(task, iterations);

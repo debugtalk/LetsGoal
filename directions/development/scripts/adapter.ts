@@ -15,6 +15,7 @@ import type {
   LoopTask,
   Story,
   ExecutionStyle,
+  FailedTier,
 } from "../../../core/scripts/types.js";
 import { EXECUTION_STYLE_STRUCTURED } from "../../../core/scripts/types.js";
 
@@ -150,7 +151,7 @@ function evaluatorResultToEvaluation(
   const weightedScore = allPassed ? computeWeightedScore(softScores!) : 0.0;
 
   // M2.6: 判定失败层级 failed_tier
-  let failedTier: string | undefined;
+  let failedTier: FailedTier | undefined;
   if (!allPassed || weightedScore < 1.0) {
     const l0Gates = new Set(["lint", "typecheck"]);
     const l0Failed = hardGates.some((g) => l0Gates.has(g.gate) && !g.passed);

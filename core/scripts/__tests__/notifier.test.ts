@@ -4,7 +4,6 @@ import {
   sendNotification,
   formatTerminalNotification,
   extractNotificationConfig,
-  sendFeishuNotification,
 } from "../notifier.js";
 import type { NotificationConfig, NotificationPayload } from "../notifier.js";
 import { spawnSync } from "node:child_process";
@@ -15,6 +14,8 @@ vi.mock("node:child_process", () => ({
 
 vi.mock("../feishu.js", () => ({
   isLarkCliAvailable: vi.fn(() => true),
+  sendFeishuMessage: vi.fn(),
+  _resetLarkCliCache: vi.fn(),
 }));
 
 const mockedSpawnSync = vi.mocked(spawnSync);
@@ -179,37 +180,28 @@ describe("sendNotification", () => {
 });
 
 // ============================================================================
-// sendFeishuNotification
+// 飞书通道通过 sendNotification 间接测试
 // ============================================================================
 
-describe("sendFeishuNotification", () => {
+describe("feishu channel via sendNotification", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("lark-cli 不可用时输出提示", async () => {
-    const { isLarkCliAvailable } = await import("../feishu.js");
-    (isLarkCliAvailable as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
+  it("飞书通知失败不抛错（sendFeishuMessage 内部 catch）", async () => {
     const errSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const { sendFeishuMessage } = await import("../feishu.js");
+    (sendFeishuMessage as ReturnType<typeof vi.fn>).mockImplementationOnce(() => {
+      throw new Error("lark-cli 发送消息失败");
+    });
 
-    await sendFeishuNotification(basePayload, "chat-123");
+    await sendNotification(basePayload, {
+      ...defaultConfig,
+      channel: "both",
+      feishu_chat_id: "chat-123",
+    });
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
-  });
-
-  it("lark-cli 执行失败时抛错", async () => {
-    const { isLarkCliAvailable } = await import("../feishu.js");
-    (isLarkCliAvailable as ReturnType<typeof vi.fn>).mockReturnValueOnce(true);
-    mockedSpawnSync.mockReturnValue({
-      status: 1,
-      stdout: "",
-      stderr: "error",
-      error: undefined,
-    } as ReturnType<typeof spawnSync>);
-
-    await expect(sendFeishuNotification(basePayload, "chat-123")).rejects.toThrow(
-      "lark-cli 发送消息失败",
-    );
   });
 });
 

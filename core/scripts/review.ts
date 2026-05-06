@@ -15,12 +15,9 @@ const CLI_TIMEOUT_MS = 60_000;
  * 将用户自然语言需求结构化为 ReviewOutput。
  *
  * 通过调用 claude -p 让 AI 将原始需求解析为结构化格式。
- *
- * @param rawInput 用户原始输入
- * @returns ReviewOutput 结构化的需求描述
- * @throws claude 不可用或结构化失败时抛出错误
+ * 内部使用 spawnSync，调用方无需 await。
  */
-export async function reviewRequirement(rawInput: string): Promise<ReviewOutput> {
+export function reviewRequirement(rawInput: string): ReviewOutput {
   const prompt = `你是一个需求分析师。请将以下原始需求结构化。
 
 ## 原始需求
@@ -123,9 +120,6 @@ export function applyReviewFeedback(
 ): ReviewOutput {
   const updated = { ...review };
 
-  // 简单的反馈处理逻辑:如果反馈中包含明确指令,直接更新
-  // 实际场景中这里会调用 claude -p 做更智能的处理
-  // 当前为轻量实现:将反馈追加到 questions 中,提升 confidence
   const feedbackLines = feedback
     .split(/\n/)
     .map((l) => l.trim())
