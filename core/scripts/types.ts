@@ -15,7 +15,7 @@ export type LoopDirection = "development" | "data-collection" | "model-tuning";
 
 export type TaskStatus =
   | "draft" // 已创建,未启动
-  | "awaiting_review" // 需求已结构化,等待用户确认(M2.6)
+  | "awaiting_review" // 需求已结构化,等待用户确认(M4)
   | "running" // 正在循环
   | "awaiting_human" // 等待人工决策
   | "passed" // 通过验收
@@ -27,23 +27,23 @@ export type IterationStatus = "running" | "passed" | "failed";
 
 export type NextAction = "retry" | "escalate" | "done";
 
-// 渐进式自主模式(M2 启用,M0/M1 默认 standard)
+// 渐进式自主模式(M3 启用,M3/M3 默认 standard)
 export type AutonomyMode = "strict" | "standard" | "autonomous";
 
-// 执行风格(M2.5 启用,默认为 structured)
+// 执行风格(M3 启用,默认为 structured)
 export type ExecutionStyle = "structured" | "ai_autonomous";
 
-// 评估失败层级(M2.6)
+// 评估失败层级(M4)
 export type FailedTier = "L0" | "L1" | "L2" | "L3";
 
-// 通知通道(M2.6)
+// 通知通道(M4)
 export type NotifyChannel = "terminal" | "feishu" | "both";
 
 export const EXECUTION_STYLE_STRUCTURED: ExecutionStyle = "structured";
 export const EXECUTION_STYLE_AI_AUTONOMOUS: ExecutionStyle = "ai_autonomous";
 
 // ============================================================================
-// Story 级追踪(M2.5)
+// Story 级追踪(M3)
 // ============================================================================
 
 export interface Story {
@@ -53,7 +53,7 @@ export interface Story {
 }
 
 // ============================================================================
-// 需求 Review(M2.6)
+// 需求 Review(M4)
 // ============================================================================
 
 /**
@@ -92,7 +92,7 @@ export interface HardGateResult {
 }
 
 /**
- * 加权软分单项(M1 引入,M0 暂不使用)。
+ * 加权软分单项(M3 引入,M3 暂不使用)。
  *
  * 用于在多个候选版本之间排序。score ∈ [0,1],weight ∈ [0,1]。
  */
@@ -108,9 +108,9 @@ export interface SoftScoreItem {
 export interface EvaluationResult {
   hard_gates: HardGateResult[];
   hard_gates_all_passed: boolean;
-  soft_scores?: SoftScoreItem[]; // M0 可省略
-  weighted_score: number; // M0 可简化为"硬门禁通过则 1.0,否则 0.0"
-  failed_tier?: FailedTier; // M2.6: 失败层级，用于聚焦修复指引
+  soft_scores?: SoftScoreItem[]; // M3 可省略
+  weighted_score: number; // M3 可简化为"硬门禁通过则 1.0,否则 0.0"
+  failed_tier?: FailedTier; // M4: 失败层级，用于聚焦修复指引
 }
 
 // ============================================================================
@@ -118,13 +118,13 @@ export interface EvaluationResult {
 // ============================================================================
 
 /**
- * 失败归因。M0 仅 reason 自由文本;M1 引入 category 分类。
+ * 失败归因。M3 仅 reason 自由文本;M3 引入 category 分类。
  *
  * category 在各 direction 内部定义具体枚举(开发调试 9 类、数据采集 11 类等),
  * 共享类型只约束为 string,避免 core 感知方向。
  */
 export interface Diagnosis {
-  category?: string; // 方向特异分类(M1 启用)
+  category?: string; // 方向特异分类(M3 启用)
   reason: string; // 自由文本说明
   evidence?: string[]; // 辅助证据(stderr 摘要、failed test 名等)
 }
@@ -134,7 +134,7 @@ export interface Diagnosis {
 // ============================================================================
 
 /**
- * 单个产物记录(M1 引入)。M0 用 changed_files + commit_sha 替代。
+ * 单个产物记录(M3 引入)。M3 用 changed_files + commit_sha 替代。
  */
 export interface Artifact {
   type: string; // commit | log | report | screenshot | json | ...
@@ -156,7 +156,7 @@ export interface IterationResult {
   diagnosis?: Diagnosis; // 仅当 status === "failed" 时有值
   changed_files: string[];
   commit_sha?: string; // 使用 Git 状态源时填入
-  artifacts?: Artifact[]; // M1 引入
+  artifacts?: Artifact[]; // M3 引入
   next_action: NextAction;
   started_at: string; // ISO 8601
   ended_at: string;
@@ -180,8 +180,8 @@ export interface SuccessCriteria {
 export interface LoopConfig {
   max_iterations: number; // 默认 10
   min_score: number; // 默认 0.92
-  autonomy_mode?: AutonomyMode; // M2 启用,M0/M1 默认 standard
-  execution_style?: ExecutionStyle; // M2.5 启用,覆盖 adapter 默认值
+  autonomy_mode?: AutonomyMode; // M3 启用,M3/M3 默认 standard
+  execution_style?: ExecutionStyle; // M3 启用,覆盖 adapter 默认值
   feishu_doc_url?: string; // 飞书文档 URL(review 后填充)
   feishu_doc_id?: string; // 飞书文档 ID(review 后填充)
   feishu_chat_id?: string; // 飞书群聊 ID(通知用)
@@ -209,8 +209,8 @@ export interface LoopTask {
   best_score: number; // 历史最佳分数
   best_iteration: number; // 取得最佳分数的轮次
   direction_payload: Record<string, unknown>; // 方向特异字段
-  stories?: Story[]; // M2.5: Story 级追踪(可选)
-  raw_requirement?: string; // M2.6: 原始需求(## 原始需求 section)
+  stories?: Story[]; // M3: Story 级追踪(可选)
+  raw_requirement?: string; // M4: 原始需求(## 原始需求 section)
   created_at: string;
   updated_at: string;
 }
@@ -231,7 +231,7 @@ export interface DirectionAdapter {
   /** 需要升级人工的归因分类集合，core 据此决定是否暂停循环 */
   escalate_categories: ReadonlySet<string>;
 
-  /** M2.5: 执行风格。默认 structured;可被 LoopTask.config.execution_style 覆盖 */
+  /** M3: 执行风格。默认 structured;可被 LoopTask.config.execution_style 覆盖 */
   execution_style?(): ExecutionStyle;
 
   /** Plan 阶段:解析需求 + 校验 + 准备 workspace */

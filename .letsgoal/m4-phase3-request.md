@@ -1,7 +1,8 @@
-# LetsGoal 终态报告
+# 开发调试任务
 
-- 任务 ID: `request-phase3-20260505165449-3c85ff`
-- 目标: 实现 M2.6 阶段 3：质量（软分维度补全 + L0-L3 分层评估 + 归因分类器增强）。
+## 目标
+
+实现 M4 阶段 3：质量（软分维度补全 + L0-L3 分层评估 + 归因分类器增强）。
 
 具体包括三个子任务：
 
@@ -94,14 +95,42 @@ diagnose(
 - 所有新增代码必须有 vitest 测试
 - 现有 188 个测试全部通过后才能提交
 - classifier.ts 新规则不应影响已有分类规则的优先级
-- 方向: development
-- 终态: **passed**
-- 总轮次: 1 / 5
-- 最佳分数: 1 (轮次 1)
-- 创建时间: 2026-05-05T16:54:49.047Z
-- 更新时间: 2026-05-05T17:12:22.150Z
 
-## 每轮结果
-| 轮次 | 状态 | 硬门禁 | commit | changed_files / 归因 |
-|---|---|---|---|---|
-| 1 | passed | typecheck=✓ test=✓ | `7f017c3` | core/scripts/self_loop.ts, core/scripts/types.ts, directions/development/scripts/__tests__/adapter_m26.test.ts, directions/development/scripts/__tests__/classifier_m26.test.ts, directions/development/scripts/__tests__/evaluator_tiered.test.ts, directions/development/scripts/__tests__/executor_tier.test.ts, directions/development/scripts/__tests__/soft_scorer_m26.test.ts, directions/development/scripts/adapter.ts, directions/development/scripts/classifier.ts, directions/development/scripts/diagnose.ts, directions/development/scripts/evaluator.ts, directions/development/scripts/executor.ts, directions/development/scripts/soft_scorer.ts |
+## 项目根目录
+
+/Users/debugtalk/MyProjects/MyGitHub/notes/projects/LetsGoal
+
+## 约束
+
+- 使用 TypeScript
+- 不引入新的运行时依赖
+- 保持现有 API 兼容（所有已有测试必须继续通过）
+- 新增参数均为可选（不破坏现有调用方）
+- L0-L3 分层只影响评估顺序，不改变 EvaluatorResult 结构
+- 阈值常量：MAX_LINT_WARNINGS=20, COMPLEXITY_BASELINE=10, DOCS_NO_DOC_SCORE=0.7
+- classifier 新规则不应与现有规则冲突
+
+## 禁止改动
+
+- core/references/loop-protocol.md
+- directions/development/DIRECTION.md
+- docs/roadmap.md
+- docs/design.md
+
+## 配置
+
+```yaml
+task_type: feature
+language: typescript
+success_criteria:
+  hard_gates:
+    - typecheck
+    - test
+loop_config:
+  max_iterations: 5
+  min_score: 1.0
+  autonomy_mode: standard
+commands:
+  typecheck: npx tsc --noEmit
+  test: npx vitest run
+```

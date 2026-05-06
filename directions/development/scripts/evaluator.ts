@@ -40,7 +40,7 @@ import {
 // ============================================================================
 
 
-/** 单个命令的默认超时(毫秒)。M0 全局统一,M1+ 可分门禁配置。 */
+/** 单个命令的默认超时(毫秒)。M3 全局统一,M3+ 可分门禁配置。 */
 const DEFAULT_COMMAND_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** stdout/stderr 截尾保留的行数 */
@@ -335,7 +335,7 @@ function resolveEvalCasesDir(
  * 跑完三件套,拼装 EvaluatorResult。
  * 缺失字段表示该门禁未发现命令,被 skip。
  *
- * M2.6: L0-L3 分层执行。L0 失败跳过 L1+；L1 失败跳过 L3。
+ * M4: L0-L3 分层执行。L0 失败跳过 L1+；L1 失败跳过 L3。
  * - L0（结构）：lint + typecheck
  * - L1（功能）：test
  * - L2（质量）：coverage + soft scores（由 adapter 计算，evaluator 不跑额外命令）

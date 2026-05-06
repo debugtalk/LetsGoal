@@ -241,7 +241,7 @@ export interface ParseRequestOptions {
   requestPath: string;
   /** 工作目录绝对路径(用于 LoopTask.workspace_path) */
   workspacePath: string;
-  /** 任务方向。M0 仅支持 development */
+  /** 任务方向。M3 仅支持 development */
   direction?: LoopDirection;
 }
 
@@ -251,7 +251,7 @@ export function parseMarkdownTask(
 ): LoopTask {
   const direction = opts.direction ?? "development";
   if (direction !== "development") {
-    throw new Error(`M0 暂不支持方向 "${direction}",仅支持 development`);
+    throw new Error(`M3 暂不支持方向 "${direction}",仅支持 development`);
   }
 
   const sections = splitByH2(markdown);

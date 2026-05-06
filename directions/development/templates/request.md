@@ -58,9 +58,9 @@ success_criteria:
 loop_config:
   max_iterations: 10
   min_score: 0.92
-  # 渐进式自主:strict | standard | autonomous(M2 启用,M0/M1 默认 standard)
+  # 渐进式自主:strict | standard | autonomous(M3 启用,M3/M3 默认 standard)
   autonomy_mode: standard
-  # 飞书集成(M2.6 启用,可选)
+  # 飞书集成(M4 启用,可选)
   # feishu_chat_id: <飞书群聊 ID,用于通知>
   # notify_channel: terminal | feishu | both(默认 terminal)
 
@@ -74,6 +74,6 @@ commands:
   typecheck: npm run typecheck
   test: npm test
 
-# 覆盖率目标(M2 启用,M0/M1 忽略)
+# 覆盖率目标(M3 启用,M3/M3 忽略)
 # coverage_target: 0.8
 ```

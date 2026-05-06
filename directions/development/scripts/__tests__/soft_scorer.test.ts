@@ -139,7 +139,7 @@ describe("computeSoftScores", () => {
     expect(scores.find((s) => s.name === "docs")?.weight).toBeCloseTo(0.2, 2);
   });
 
-  it("stubs complexity, smells, docs at 1.0 (M2 initial)", () => {
+  it("stubs complexity, smells, docs at 1.0 (M3 initial)", () => {
     const raw: EvaluatorResult = {
       test: {
         command: "npm test",

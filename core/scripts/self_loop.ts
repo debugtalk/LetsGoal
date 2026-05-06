@@ -82,7 +82,7 @@ function parseCliArgs(): CliArgs {
 
   const direction = (values.direction ?? "development") as LoopDirection;
   if (direction !== "development") {
-    throw new Error(`M0 暂只支持 --direction development,收到: ${direction}`);
+    throw new Error(`M3 暂只支持 --direction development,收到: ${direction}`);
   }
 
   return {
@@ -233,7 +233,7 @@ function tryNotify(
 }
 
 // ============================================================================
-// Review 阶段(M2.6)
+// Review 阶段(M4)
 // ============================================================================
 
 async function runReviewPhase(task: LoopTask): Promise<LoopTask> {

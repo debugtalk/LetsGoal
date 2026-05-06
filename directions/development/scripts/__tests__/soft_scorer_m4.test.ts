@@ -56,7 +56,7 @@ describe("extractComplexityFromEslint", () => {
 // computeSoftScores — smells dimension
 // ============================================================================
 
-describe("computeSoftScores — smells (M2.6)", () => {
+describe("computeSoftScores — smells (M4)", () => {
   it("deducts score based on lint warnings", () => {
     const raw: EvaluatorResult = {
       lint: {
@@ -151,7 +151,7 @@ describe("computeSoftScores — smells (M2.6)", () => {
 // computeSoftScores — complexity dimension
 // ============================================================================
 
-describe("computeSoftScores — complexity (M2.6)", () => {
+describe("computeSoftScores — complexity (M4)", () => {
   it("uses eslint complexity output when available", () => {
     const raw: EvaluatorResult = {
       lint: {
@@ -248,7 +248,7 @@ describe("computeSoftScores — complexity (M2.6)", () => {
 // computeSoftScores — docs dimension
 // ============================================================================
 
-describe("computeSoftScores — docs (M2.6)", () => {
+describe("computeSoftScores — docs (M4)", () => {
   it("returns 1.0 when changed files include .md", () => {
     const raw: EvaluatorResult = {};
     const scores = computeSoftScores(raw, 0.8, undefined, ["src/foo.ts", "README.md"]);
@@ -296,7 +296,7 @@ describe("computeSoftScores — docs (M2.6)", () => {
 // computeSoftScores — backward compatibility
 // ============================================================================
 
-describe("computeSoftScores — backward compat (M2.6)", () => {
+describe("computeSoftScores — backward compat (M4)", () => {
   it("works without changedFiles param (same as before)", () => {
     const raw: EvaluatorResult = {
       test: {

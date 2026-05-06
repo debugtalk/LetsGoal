@@ -61,7 +61,7 @@ export interface ExecutorInput {
   iteration: number; // 当前轮次,从 1 开始
   prevEvaluation?: EvaluatorResult;
   prevDiagnosis?: Diagnosis;
-  execution_style?: ExecutionStyle; // M2.5: 执行风格覆盖
+  execution_style?: ExecutionStyle; // M3: 执行风格覆盖
   prevFailedTier?: FailedTier;
 }
 
@@ -74,7 +74,7 @@ export interface ExecutorOutput {
   duration_ms: number;
   /** Claude 自己输出的 JSON 摘要(若 prompt 末尾要求格式正确解析) */
   claude_summary?: { changed_files: string[]; commit_sha: string };
-  /** M2.5: Claude 自省产出的 learnings */
+  /** M3: Claude 自省产出的 learnings */
   ai_learnings?: string;
 }
 
@@ -173,19 +173,19 @@ export function buildPrompt(input: ExecutorInput): string {
   const blocks: string[] = [];
   blocks.push(PROMPT_HEADER);
 
-  // M2.5: 加载过往经验
+  // M3: 加载过往经验
   const executionStyle = input.execution_style ?? EXECUTION_STYLE_STRUCTURED;
   const learnings = readLearnings(task.workspace_path);
   if (learnings.length > 0) {
     blocks.push(`# 过往经验(learnings)\n以下是从之前轮次沉淀下来的经验，供你参考：\n\n${learnings}`);
   }
 
-  // 执行风格上下文（M2.5）
+  // 执行风格上下文（M3）
   if (executionStyle === EXECUTION_STYLE_AI_AUTONOMOUS) {
     blocks.push("# 执行风格：AI 自治\n你处于 AI 自治模式。请自行判断最佳修复方案，不需要严格遵循预设策略。评估结果仅作为参考信息。");
   }
 
-  // 自主模式上下文（M2）
+  // 自主模式上下文（M3）
   const autonomyMode = task.config.autonomy_mode ?? "standard";
   if (autonomyMode === "strict") {
     blocks.push("# 自主模式：strict\n你处于严格自主模式。在重大架构决策前应暂停，不要做出可能破坏系统的变更。优先安全性和可回退性。");
@@ -214,7 +214,7 @@ export function buildPrompt(input: ExecutorInput): string {
 
   // 上一轮信息(N>1 时)
   if (iteration > 1) {
-    // M2.6: 分层修复指引
+    // M4: 分层修复指引
     if (input.prevFailedTier !== undefined) {
       const tierGuidance: Record<string, string> = {
         L0: "上一轮在 L0 失败（语法/类型错误），仅修复这些基础问题，不要尝试功能变更",
@@ -248,7 +248,7 @@ export function buildPrompt(input: ExecutorInput): string {
       const lines = [`# 上一轮失败归因`, input.prevDiagnosis.reason];
       if (input.prevDiagnosis.category && isDiagnosisCategory(input.prevDiagnosis.category)) {
         lines.push(`归因分类: ${input.prevDiagnosis.category}`);
-        // M2.5: ai_autonomous 模式下不注入修复建议,让 AI 自行判断
+        // M3: ai_autonomous 模式下不注入修复建议,让 AI 自行判断
         if (executionStyle !== EXECUTION_STYLE_AI_AUTONOMOUS) {
           const hint = categoryRepairHint(input.prevDiagnosis.category);
           if (hint) lines.push(`修复建议: ${hint}`);
@@ -276,7 +276,7 @@ export function buildPrompt(input: ExecutorInput): string {
     if (cmdLines.length > 1) blocks.push(cmdLines.join("\n"));
   }
 
-  // M2.5: Story 上下文
+  // M3: Story 上下文
   const stories = task.stories;
   if (stories && stories.length > 0) {
     const current = stories.find((s) => s.status === "pending");

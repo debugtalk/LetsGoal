@@ -6,7 +6,7 @@
 
 模块需导出以下 API：
 - `extractCoverageFromOutput(stdout: string): number | undefined` — 从 vitest/jest 覆盖率输出中提取行覆盖率百分比（0-1）
-- `computeSoftScores(raw: EvaluatorResult, coverageTarget: number): SoftScoreItem[]` — 计算 4 维软分（coverage/complexity/smells/docs），后三项 M2 初期 stub 为 1.0
+- `computeSoftScores(raw: EvaluatorResult, coverageTarget: number): SoftScoreItem[]` — 计算 4 维软分（coverage/complexity/smells/docs），后三项 M3 初期 stub 为 1.0
 - `computeWeightedScore(items: SoftScoreItem[]): number` — 计算 sum(score * weight) 作为加权总分
 - `DEFAULT_SOFT_SCORE_WEIGHTS` — 默认权重常量 { coverage: 0.4, complexity: 0.2, smells: 0.2, docs: 0.2 }
 

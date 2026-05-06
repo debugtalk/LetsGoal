@@ -116,7 +116,7 @@ export function diagnoseDevelopmentFailure(
 
   const category = classifyFailure(evaluation, evaluatorResult, taskType, iterationHistory);
 
-  // M2.5: 经验沉淀写入
+  // M3: 经验沉淀写入
   writeCategoryLearning(opts?.workspacePath, category === "unknown" ? undefined : category);
   writeAiLearning(opts?.workspacePath, opts?.aiLearnings);
 

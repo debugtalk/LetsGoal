@@ -24,7 +24,7 @@ function makeTask(overrides?: Partial<LoopTask>): LoopTask {
   };
 }
 
-describe("buildPrompt — tier-focused repair guidance (M2.6)", () => {
+describe("buildPrompt — tier-focused repair guidance (M4)", () => {
   it("includes L0 guidance when prevFailedTier is L0", () => {
     const prompt = buildPrompt({
       task: makeTask(),

@@ -76,7 +76,7 @@ Evaluate → EvaluationResult（hard_gates + weighted_score）
 **职责**：
 - 对照 `LoopTask.success_criteria` 执行评估
 - 计算 hard gates 通过状态
-- 计算加权软分（M1 引入，M0 简化为"全过 1.0 / 否则 0.0"）
+- 计算加权软分（M3 引入，M1 简化为"全过 1.0 / 否则 0.0"）
 
 **输入**：
 - `LoopTask`：当前任务定义
@@ -88,8 +88,8 @@ Evaluate → EvaluationResult（hard_gates + weighted_score）
 interface EvaluationResult {
   hard_gates: HardGateResult[];      // 每个必过项的通过状态
   hard_gates_all_passed: boolean;    // 所有 hard_gates 都通过
-  soft_scores?: SoftScoreItem[];     // M1 引入的加权软分明细
-  weighted_score: number;            // [0, 1]，M0 简化为硬门禁函数
+  soft_scores?: SoftScoreItem[];     // M3 引入的加权软分明细
+  weighted_score: number;            // [0, 1]，M1 简化为硬门禁函数
 }
 ```
 
@@ -102,7 +102,7 @@ interface EvaluationResult {
 **职责**：
 - 分析 `EvaluationResult`，定位失败原因
 - 生成 `Diagnosis`，包含 reason（自由文本）和可选 evidence
-- M1 引入 `category` 方向特异分类
+- M2 引入 `category` 方向特异分类
 
 **输入**：
 - `LoopTask`：当前任务定义
@@ -113,7 +113,7 @@ interface EvaluationResult {
 
 ```typescript
 interface Diagnosis {
-  category?: string;      // 方向特异分类（M1 启用）
+  category?: string;      // 方向特异分类（M2 启用）
   reason: string;         // 失败原因自由文本摘要
   evidence?: string[];    // 辅助证据（stderr 摘要、失败测试名等）
 }
@@ -196,13 +196,13 @@ core 通过两种机制实现跨轮记忆：
 
 方向可自行选择主要记忆源（开发调试选 Git，数据采集/模型调优可选状态文件）。
 
-## 7. M0 与 M1+ 的差异
+## 7. M1 与 M2+ 的差异
 
-| 特性 | M0 | M1 | M2+ |
+| 特性 | M1 | M2 | M3+ |
 |------|----|----|-----|
 | 硬门禁 | lint/typecheck/test | 同上 | + coverage、e2e |
-| 加权软分 | 简化（全过 1.0） | 引入覆盖率/复杂度等 | 完整权重体系 |
+| 加权软分 | 简化（全过 1.0） | 同上 | 引入覆盖率/复杂度等完整权重体系 |
 | 归因分类 | 自由文本（无 category） | 引入方向特异分类 | 分类 + 自动修复策略 |
 | 渐进式自主 | standard 固定 | standard 固定 | strict/standard/autonomous |
-| 飞书通知 | ❌ | ⚠️ 可选 | ✅ |
-| 多任务并行 | ❌ | ❌ | ✅ |
+| 飞书通知 | ❌ | ❌ | ✅（M4） |
+| 多任务并行 | ❌ | ❌ | 远期 |

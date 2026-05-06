@@ -9,8 +9,8 @@ export type DevTaskType =
   | "feature" // 实现新功能
   | "bugfix" // 修复 bug
   | "refactor" // 重构
-  | "skill_creation" // 创建新 skill(M1)
-  | "skill_optimize"; // 优化现有 skill(M1)
+  | "skill_creation" // 创建新 skill(M3)
+  | "skill_optimize"; // 优化现有 skill(M3)
 
 export type ProjectLanguage =
   | "typescript"
@@ -46,7 +46,7 @@ export interface DevTaskRequest {
   commands?: DevCommands; // 不给则按发现策略 fallback
   task_type?: DevTaskType; // 默认 feature
   bug_repro?: string; // task_type=bugfix 时必填
-  coverage_target?: number; // M2 启用,M0/M1 忽略
+  coverage_target?: number; // M3 启用,M3/M3 忽略
   eval_suite?: import("./eval_suite.js").EvalSuiteConfig; // 评测集版本冻结
 }
 
@@ -60,7 +60,7 @@ export interface EvaluatorRunResult {
   duration_ms: number;
   stdout_tail: string; // 末尾 100 行
   stderr_tail: string; // 末尾 100 行
-  parsed_failures?: string[]; // M1 引入,M0 留空
+  parsed_failures?: string[]; // M3 引入,M3 留空
 }
 
 /**

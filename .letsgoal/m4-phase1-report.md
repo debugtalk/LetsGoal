@@ -1,7 +1,7 @@
 # LetsGoal 终态报告
 
 - 任务 ID: `request-phase1-20260505163544-61c813`
-- 目标: 实现 M2.6 阶段 1：入口（Skill 触发 + 飞书文档需求流）。
+- 目标: 实现 M4 阶段 1：入口（Skill 触发 + 飞书文档需求流）。
 
 具体包括：
 1. **类型扩展**：在 `core/scripts/types.ts` 中新增 `awaiting_review` 任务状态、`ReviewOutput` 接口、`FeishuDocRef` 接口，扩展 `LoopConfig` 增加飞书和通知字段

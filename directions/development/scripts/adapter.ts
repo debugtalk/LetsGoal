@@ -35,7 +35,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 // ============================================================================
-// 跨阶段状态(单实例,M0 不考虑并发)
+// 跨阶段状态(单实例,M3 不考虑并发)
 // ============================================================================
 
 interface IterCache {
@@ -105,7 +105,7 @@ function evaluatorResultToEvaluation(
     if (gate !== null) hardGates.push(gate);
   }
 
-  // Coverage 门禁（M2）：从测试输出提取覆盖率，低于 target 则失败
+  // Coverage 门禁（M3）：从测试输出提取覆盖率，低于 target 则失败
   const dev = asDevPayload(task.direction_payload);
   const coverageTarget = dev.coverage_target ?? 0.8;
   const coverageExtracted = extractCoverageFromOutput(raw.test?.stdout_tail ?? "");
@@ -146,11 +146,11 @@ function evaluatorResultToEvaluation(
 
   const allPassed = hardGates.every((g) => g.passed);
 
-  // M2: 加权软分。硬门禁通过时从 EvaluatorResult 计算软分，否则 weighted_score = 0。
+  // M3: 加权软分。硬门禁通过时从 EvaluatorResult 计算软分，否则 weighted_score = 0。
   const softScores = allPassed ? computeSoftScores(raw, coverageTarget, coverageExtracted, changedFiles) : undefined;
   const weightedScore = allPassed ? computeWeightedScore(softScores!) : 0.0;
 
-  // M2.6: 判定失败层级 failed_tier
+  // M4: 判定失败层级 failed_tier
   let failedTier: FailedTier | undefined;
   if (!allPassed || weightedScore < 1.0) {
     const l0Gates = new Set(["lint", "typecheck"]);
@@ -176,7 +176,7 @@ function evaluatorResultToEvaluation(
 }
 
 // ============================================================================
-// M2.5 辅助函数
+// M3 辅助函数
 // ============================================================================
 
 function resolveExecutionStyle(task: LoopTask, adapter: DirectionAdapter): ExecutionStyle {
@@ -198,7 +198,7 @@ function updateStoryStatus(task: LoopTask, passed: boolean): void {
 // ============================================================================
 
 async function plan(task: LoopTask): Promise<LoopTask> {
-  // M0:parse_request 已在 self_loop 入口处完成,plan 只做 workspace 准备
+  // M3:parse_request 已在 self_loop 入口处完成,plan 只做 workspace 准备
   const dev = asDevPayload(task.direction_payload);
 
   if (!existsSync(dev.project_root)) {
@@ -249,7 +249,7 @@ async function execute(
     execution_style: style,
     prevFailedTier: context.prev_evaluation?.failed_tier,
   });
-  // M2.5: 缓存 AI 自省供 diagnose 阶段使用
+  // M3: 缓存 AI 自省供 diagnose 阶段使用
   const cache = iterCache.get(iteration) ?? {};
   cache.aiLearnings = out.ai_learnings;
   cache.changedFiles = out.changed_files;
@@ -303,7 +303,7 @@ async function evaluate(
   const changedFiles = cache.changedFiles;
   const evaluation = evaluatorResultToEvaluation(task, raw, changedFiles);
 
-  // M2.5: 更新当前 story 状态
+  // M3: 更新当前 story 状态
   updateStoryStatus(task, evaluation.hard_gates_all_passed);
 
   return evaluation;
@@ -346,7 +346,7 @@ async function report(task: LoopTask, iter: IterationResult): Promise<string> {
       ? `\n  └─ ${iter.diagnosis.reason}`
       : "";
 
-  // M2.5: Story 进度
+  // M3: Story 进度
   let storyTag = "";
   if (task.stories && task.stories.length > 0) {
     const passed = task.stories.filter((s) => s.status === "passed").length;

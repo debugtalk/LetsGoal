@@ -55,7 +55,7 @@ loop_config:
   autonomy_mode: standard  # strict | standard | autonomous
   feishu_chat_id: <id>     # 可选，飞书群聊 ID（通知用）
   notify_channel: terminal | feishu | both  # 通知通道，默认 terminal
-eval_suite:          # M1+ 可选，评测集冻结配置
+eval_suite:          # M2+ 可选，评测集冻结配置
   version: v1
   files:
     - "test/**"
@@ -77,7 +77,7 @@ evaluation:
   hard_gates_all_passed: false
   weighted_score: 0
 diagnosis:
-  category: test_failure        # M1 归因分类（9 类）
+  category: test_failure        # M2 归因分类（9 类）
   reason: "test: FAIL fizzbuzz(15) returns 'Fizz' but expected 'FizzBuzz'"
   evidence:
     - "FAIL test/fizzbuzz.test.js > fizzbuzz(15) returns 'FizzBuzz'"
@@ -102,7 +102,7 @@ npm run self-loop -- --direction development --input request.md --workspace ./wo
 ```
 
 参数：
-- `--direction`：方向（M0 仅支持 `development`）
+- `--direction`：方向（M2 仅支持 `development`）
 - `--input`：Markdown 任务文件路径
 - `--workspace`：工作目录（`.letsgoal/` 状态文件写入此处）
 - `--dry-run`：解析 + plan 后退出，不进入主循环

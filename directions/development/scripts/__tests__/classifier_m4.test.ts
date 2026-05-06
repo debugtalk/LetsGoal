@@ -45,7 +45,7 @@ function makeIterationResult(
 // 规则 3: typecheck 含 circular/Circular dependency → architecture_mismatch
 // ============================================================================
 
-describe("classifyFailure — circular dependency → architecture_mismatch (M2.6)", () => {
+describe("classifyFailure — circular dependency → architecture_mismatch (M4)", () => {
   it("typecheck stderr contains 'circular' → architecture_mismatch", () => {
     const evaluation = makeEvaluation(["typecheck"]);
     const evaluatorResult: EvaluatorResult = {
@@ -84,7 +84,7 @@ describe("classifyFailure — circular dependency → architecture_mismatch (M2.
 // 规则 4: typecheck 含 3+ "is not assignable" → architecture_mismatch
 // ============================================================================
 
-describe("classifyFailure — 3+ is not assignable → architecture_mismatch (M2.6)", () => {
+describe("classifyFailure — 3+ is not assignable → architecture_mismatch (M4)", () => {
   it("3 occurrences of 'is not assignable' → architecture_mismatch", () => {
     const evaluation = makeEvaluation(["typecheck"]);
     const evaluatorResult: EvaluatorResult = {
@@ -128,7 +128,7 @@ describe("classifyFailure — 3+ is not assignable → architecture_mismatch (M2
 // 规则 5: test 含 contradict/Conflict → requirement_ambiguity
 // ============================================================================
 
-describe("classifyFailure — contradict/Conflict → requirement_ambiguity (M2.6)", () => {
+describe("classifyFailure — contradict/Conflict → requirement_ambiguity (M4)", () => {
   it("test output contains 'contradict' → requirement_ambiguity", () => {
     const evaluation = makeEvaluation(["test"]);
     const evaluatorResult: EvaluatorResult = {
@@ -167,7 +167,7 @@ describe("classifyFailure — contradict/Conflict → requirement_ambiguity (M2.
 // 规则 1: 同 category 连续 3 次 → architecture_mismatch
 // ============================================================================
 
-describe("classifyFailure — consecutive 3 same category → architecture_mismatch (M2.6)", () => {
+describe("classifyFailure — consecutive 3 same category → architecture_mismatch (M4)", () => {
   it("3 consecutive type_error iterations → architecture_mismatch", () => {
     const evaluation = makeEvaluation(["typecheck"]);
     const history: IterationResult[] = [
@@ -207,7 +207,7 @@ describe("classifyFailure — consecutive 3 same category → architecture_misma
 // 规则 2: 空 commit_sha + 无 changed_files → requirement_ambiguity
 // ============================================================================
 
-describe("classifyFailure — empty commit + no changes → requirement_ambiguity (M2.6)", () => {
+describe("classifyFailure — empty commit + no changes → requirement_ambiguity (M4)", () => {
   it("last history iteration with empty commit and no changes → requirement_ambiguity", () => {
     const evaluation = makeEvaluation(["test"]);
     const history: IterationResult[] = [
@@ -252,7 +252,7 @@ describe("classifyFailure — empty commit + no changes → requirement_ambiguit
 // 规则 6: 同 category 重复 3 次 → 升级 architecture_mismatch
 // ============================================================================
 
-describe("classifyFailure — repeated 3 times total → architecture_mismatch (M2.6)", () => {
+describe("classifyFailure — repeated 3 times total → architecture_mismatch (M4)", () => {
   it("same category 3 times (non-consecutive) → architecture_mismatch", () => {
     const evaluation = makeEvaluation(["test"]);
     const history: IterationResult[] = [
@@ -282,7 +282,7 @@ describe("classifyFailure — repeated 3 times total → architecture_mismatch (
 // Backward compatibility: no iterationHistory
 // ============================================================================
 
-describe("classifyFailure — backward compat without iterationHistory (M2.6)", () => {
+describe("classifyFailure — backward compat without iterationHistory (M4)", () => {
   it("existing rules work without iterationHistory", () => {
     const evaluation = makeEvaluation(["typecheck"]);
     const evaluatorResult: EvaluatorResult = {

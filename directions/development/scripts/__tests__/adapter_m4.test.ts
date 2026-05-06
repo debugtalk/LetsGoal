@@ -5,7 +5,7 @@ import type { EvaluationResult, HardGateResult } from "../../../../core/scripts/
 // EvaluationResult.failed_tier 测试
 // ============================================================================
 
-describe("EvaluationResult.failed_tier (M2.6)", () => {
+describe("EvaluationResult.failed_tier (M4)", () => {
   it("failed_tier is optional and defaults to undefined", () => {
     const result: EvaluationResult = {
       hard_gates: [
@@ -53,7 +53,7 @@ describe("EvaluationResult.failed_tier (M2.6)", () => {
 // adapter evaluatorResultToEvaluation failed_tier 逻辑验证
 // ============================================================================
 
-describe("failed_tier logic in evaluatorResultToEvaluation (M2.6)", () => {
+describe("failed_tier logic in evaluatorResultToEvaluation (M4)", () => {
   // 模拟 adapter 内部的 failed_tier 判定逻辑
   function determineFailedTier(hardGates: HardGateResult[], allPassed: boolean, weightedScore: number): string | undefined {
     if (!allPassed || weightedScore < 1.0) {

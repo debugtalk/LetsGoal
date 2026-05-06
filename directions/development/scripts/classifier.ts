@@ -4,7 +4,7 @@
  * 规则优先的确定性分类器，读取 EvaluatorResult 输出，
  * 将失败归类为 9 类之一，规则无法覆盖时返回 "unknown"。
  *
- * M2.6 新增 6 条规则（跨迭代模式、Claude 放弃、循环依赖、需求矛盾等）。
+ * M4 新增 6 条规则（跨迭代模式、Claude 放弃、循环依赖、需求矛盾等）。
  */
 
 import type { EvaluationResult, IterationResult } from "../../../core/scripts/types.js";
@@ -63,7 +63,7 @@ const SYNTAX_KEYWORDS = ["SyntaxError", "Unexpected token"];
 
 const TYPE_KEYWORDS = ["is not assignable", "Property '", "Argument of type", "Type '", "is missing the following properties", "Cannot find module"];
 
-/** 需求矛盾关键词（M2.6） */
+/** 需求矛盾关键词（M4） */
 const CONTRADICTION_KEYWORDS = ["contradict", "Conflict"];
 
 // ============================================================================
@@ -123,12 +123,12 @@ function classifyByGates(
     if (evaluatorResult !== undefined) {
       const tcStderr = evaluatorResult.typecheck?.stderr_tail ?? "";
 
-      // M2.6: circular dependency → architecture_mismatch（优先于 syntax/type 关键词）
+      // M4: circular dependency → architecture_mismatch（优先于 syntax/type 关键词）
       if (tcStderr.includes("circular") || tcStderr.includes("Circular dependency")) {
         return "architecture_mismatch";
       }
 
-      // M2.6: 3+ "is not assignable" → architecture_mismatch
+      // M4: 3+ "is not assignable" → architecture_mismatch
       if (countOccurrences(tcStderr, "is not assignable") >= 3) {
         return "architecture_mismatch";
       }
@@ -148,7 +148,7 @@ function classifyByGates(
       const testOutput =
         (evaluatorResult.test?.stderr_tail ?? "") + (evaluatorResult.test?.stdout_tail ?? "");
 
-      // M2.6: contradict/Conflict → requirement_ambiguity
+      // M4: contradict/Conflict → requirement_ambiguity
       if (containsAny(testOutput, CONTRADICTION_KEYWORDS)) return "requirement_ambiguity";
 
       if (containsAny(testOutput, INTEGRATION_KEYWORDS)) return "integration_error";
@@ -186,7 +186,7 @@ function classifyByGates(
  * 优先级：syntax_error > type_error > lint_violation > integration_error > test_failure
  * 规则无法覆盖的返回 "unknown"。
  *
- * M2.6 新增规则（不改变已有分类规则优先级，作为后处理增强和兜底）：
+ * M4 新增规则（不改变已有分类规则优先级，作为后处理增强和兜底）：
  * - typecheck 含 circular/Circular dependency → architecture_mismatch
  * - typecheck 含 3+ "is not assignable" → architecture_mismatch
  * - test 含 contradict/Conflict → requirement_ambiguity
@@ -203,7 +203,7 @@ export function classifyFailure(
   // Phase 1: 门禁规则分类（保持原有优先级不变）
   let category = classifyByGates(evaluation, evaluatorResult, taskType);
 
-  // Phase 2: 基于迭代历史的后处理规则（M2.6）
+  // Phase 2: 基于迭代历史的后处理规则（M4）
   if (iterationHistory !== undefined && iterationHistory.length > 0) {
     // 规则: 同 category 连续 3 次 → architecture_mismatch
     const lastCategory = iterationHistory[iterationHistory.length - 1]?.diagnosis?.category;

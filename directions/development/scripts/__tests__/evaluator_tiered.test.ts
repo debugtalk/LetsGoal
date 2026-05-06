@@ -45,7 +45,7 @@ function makeIterationResult(
   };
 }
 
-describe("diagnoseDevelopmentFailure — iterationHistory (M2.6)", () => {
+describe("diagnoseDevelopmentFailure — iterationHistory (M4)", () => {
   it("passes iterationHistory to classifier", () => {
     const evaluation = makeEvaluation(["test"]);
     const evaluatorResult = makeEvaluatorResult({ failed: ["test"] });

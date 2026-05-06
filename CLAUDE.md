@@ -48,7 +48,7 @@ LetsGoal/
 - **主语言**：TypeScript（Node.js >= 20）
 - **构建**：tsc（无打包，直接 `node --import tsx` 或编译后运行）
 - **运行**：npm scripts
-- **测试**：vitest（M0 暂不引入，有需要时再加）
+- **测试**：vitest（M1 暂不引入，有需要时再加）
 - **被 LetsGoal 调度的目标项目**：任意语言（通过命令行调用 ruff/pytest/cargo/golangci-lint 等）
 
 ## 验证要求
@@ -56,10 +56,10 @@ LetsGoal/
 每次改动后必须自检通过：
 
 ```bash
-npm run check        # tsc --noEmit + 关键脚本 dry-run(M0 暂只有 tsc)
+npm run check        # tsc --noEmit + 关键脚本 dry-run(M1 暂只有 tsc)
 ```
 
-M0 阶段不强制单元测试，但每个 fixture 必须能在 `max_iterations=3` 内通过验收。
+M1 阶段不强制单元测试，但每个 fixture 必须能在 `max_iterations=3` 内通过验收。
 
 ## 红线（项目特有，补充 notes/CLAUDE.md）
 

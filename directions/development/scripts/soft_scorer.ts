@@ -2,7 +2,7 @@
  * 加权软分计算模块
  *
  * 从评估器输出中提取覆盖率，计算 4 维软分（coverage/complexity/smells/docs），
- * 并汇总为加权总分。M2.6 实现 smells/complexity/docs 真实计算。
+ * 并汇总为加权总分。M4 实现 smells/complexity/docs 真实计算。
  */
 
 import type { EvaluatorResult } from "./types.js";
@@ -132,7 +132,7 @@ function computeDocsScore(changedFiles?: string[]): number {
  *
  * 覆盖率软分 = extracted / coverageTarget，上限 1.0。
  * 找不到覆盖率数据时默认 1.0。
- * smells/complexity/docs 在 M2.6 实现真实计算。
+ * smells/complexity/docs 在 M4 实现真实计算。
  */
 export function computeSoftScores(
   raw: EvaluatorResult,
