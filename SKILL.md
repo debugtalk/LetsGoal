@@ -3,8 +3,9 @@ name: letsgoal
 description: |-
   目标导向的 Agent 自循环框架。用户给出目标和成功标准，系统自主完成
   Plan → Execute → Evaluate → Repair → Report 五阶段闭环，仅在关键决策点引入人工。
-  M0 已实现「开发调试」方向（编码→验证→修复→汇报），适用于有明确测试/验收标准的开发任务。
-  TRIGGER when: 用户提交结构化开发任务需求（Markdown），或要求系统
+  支持自然语言需求输入，系统自动结构化为飞书文档供确认；关键决策通知（终端+飞书）；
+  L0-L3 分层评估聚焦修复；迭代过程实时追加到飞书文档。
+  TRIGGER when: 用户输入 /letsgoal 或要求系统
   "自动修 bug 直到测试通过"、"按验收标准迭代实现功能"、"创建/优化 Skill"等场景。
   SKIP when: 一次性单步操作、无验收标准的开放探索、需要全程人工决策的高风险变更。
 ---
@@ -19,7 +20,10 @@ description: |-
 
 ## 输入契约
 
-输入是 Markdown 文件，完整模板见 `directions/development/templates/request.md`。
+两种输入方式：
+
+1. **自然语言需求**：在 `## 原始需求` 中输入概括性描述，系统自动结构化为飞书文档供确认
+2. **结构化 Markdown**：完整模板见 `directions/development/templates/request.md`
 
 关键字段：
 
@@ -27,7 +31,7 @@ description: |-
 goal: <一句话目标，例：实现 fizzbuzz 函数通过所有测试>
 project_root: <被开发项目的绝对路径>
 success_criteria:
-  hard_gates: [lint, typecheck, test]  # 必过项（M0 支持 lint/typecheck/test）
+  hard_gates: [lint, typecheck, test]  # 必过项
 constraints:
   - 使用 TypeScript
   - 不引入新的运行时依赖
@@ -48,7 +52,9 @@ commands:           # 可选，省略时自动探测
 loop_config:
   max_iterations: 3   # 默认 10
   min_score: 1.0      # 默认 0.92
-  autonomy_mode: standard  # strict | standard | autonomous（M2 启用，M0/M1 默认 standard）
+  autonomy_mode: standard  # strict | standard | autonomous
+  feishu_chat_id: <id>     # 可选，飞书群聊 ID（通知用）
+  notify_channel: terminal | feishu | both  # 通知通道，默认 terminal
 eval_suite:          # M1+ 可选，评测集冻结配置
   version: v1
   files:

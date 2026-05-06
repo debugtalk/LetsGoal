@@ -177,7 +177,7 @@ export const developmentAdapter: DirectionAdapter = {
 - story 级独立评估（当前仍使用任务级评估）
 - 飞书通知 / 飞书表格
 
-## M2.6 范围
+## M2.6 范围（✅ 已完成）
 
 > 核心设计原则：飞书文档是 M2.6 的中心载体——需求输入、任务拆解确认、迭代过程记录都围绕同一份飞书文档展开。lark-cli 是必须依赖。
 
